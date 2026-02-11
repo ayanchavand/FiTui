@@ -1,12 +1,28 @@
 use rusqlite::{Connection, Result};
-
 use std::collections::HashMap;
+use directories::ProjectDirs;
+use std::fs;
 
 use crate::models::{Tag, Transaction, TransactionType};
 
 pub fn init_db() -> Result<Connection> {
-    let conn = Connection::open("budget.db")?;
+    // ✅ Get standard OS data directory
+    let proj_dirs = ProjectDirs::from("com", "ayan", "fitui")
+        .expect("Could not determine data directory");
 
+    let data_dir = proj_dirs.data_dir();
+
+    // ✅ Ensure directory exists
+    fs::create_dir_all(data_dir).expect("Failed to create data directory");
+
+    // ✅ Final database path
+    let db_path = data_dir.join("budget.db");
+
+    println!("Database location: {:?}", db_path);
+
+    let conn = Connection::open(db_path)?;
+
+    // Create table if missing
     conn.execute(
         "CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +37,7 @@ pub fn init_db() -> Result<Connection> {
 
     Ok(conn)
 }
+
 
 // ============================
 // Load Transactions
