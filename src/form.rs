@@ -1,6 +1,6 @@
 use crate::models::{Tag, TransactionType};
 
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum Field {
     Source,
     Amount,
