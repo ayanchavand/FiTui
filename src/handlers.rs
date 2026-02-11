@@ -110,7 +110,7 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 fn handle_stats(app: &mut App, key: KeyCode) -> bool {
     match key {
         // Exit Stats page back to normal
-        KeyCode::Esc => {
+        KeyCode::Char('q') => {
             app.mode = Mode::Normal;
         }
 
