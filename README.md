@@ -15,6 +15,16 @@ The interface is keyboard-driven and runs entirely inside the terminal.
 - Local persistence using SQLite
 - Configurable tags stored in a YAML file
 
+### Screenshots
+
+Main interface:
+
+![Main interface](assets/main_page.png)
+
+Stats view:
+
+![Stats view](assets/stats_page.png)
+
 ---
 
 ## Controls
