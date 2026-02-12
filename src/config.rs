@@ -5,6 +5,12 @@ use std::{fs, path::PathBuf};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub tags: Vec<String>,
+    #[serde(default = "default_currency")]
+    pub currency: String,
+}
+
+fn default_currency() -> String {
+    "$".to_string()
 }
 
 impl Default for Config {
@@ -18,6 +24,7 @@ impl Default for Config {
                 "salary".into(),
                 "other".into(),
             ],
+            currency: default_currency(),
         }
     }
 }

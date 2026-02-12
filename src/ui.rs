@@ -28,7 +28,7 @@ pub fn draw_ui(
     let theme = Theme::default();
     
     match app.mode {
-        Mode::Stats => draw_stats_view(f, earned, spent, balance, per_tag, monthly_history, tx_count, largest, smallest, top_tags, &theme),
+        Mode::Stats => draw_stats_view(f, earned, spent, balance, per_tag, monthly_history, tx_count, largest, smallest, top_tags, &theme, &app.currency),
         Mode::Adding => {
             draw_main_view(f, transactions, earned, spent, balance, app, &theme);
             draw_transaction_form(f, app, &theme);
@@ -52,7 +52,7 @@ fn draw_main_view(
         .constraints([Constraint::Length(7), Constraint::Min(1)])
         .split(f.size());
 
-    draw_header(f, chunks[0], earned, spent, balance, theme);
+    draw_header(f, chunks[0], earned, spent, balance, theme, &app.currency);
     draw_transactions_list(f, chunks[1], transactions, app, theme);
 }
 
@@ -63,6 +63,7 @@ fn draw_header(
     spent: f64,
     balance: f64,
     theme: &Theme,
+    currency: &str,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -81,7 +82,7 @@ fn draw_header(
         ]),
         Line::raw(""),
         Line::styled(
-            format!("₹{:.2}", earned),
+            format!("{}{:.2}", currency, earned),
             Style::default()
                 .fg(theme.credit)
                 .add_modifier(Modifier::BOLD),
@@ -102,7 +103,7 @@ fn draw_header(
         Line::styled("BALANCE", theme.title()),
         Line::raw(""),
         Line::styled(
-            format!("₹{:.2}", balance),
+            format!("{}{:.2}", currency, balance),
             Style::default()
                 .fg(balance_color)
                 .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
@@ -127,7 +128,7 @@ fn draw_header(
         ]),
         Line::raw(""),
         Line::styled(
-            format!("₹{:.2}", spent),
+            format!("{}{:.2}", currency, spent),
             Style::default()
                 .fg(theme.debit)
                 .add_modifier(Modifier::BOLD),
@@ -151,7 +152,7 @@ fn draw_transactions_list(
         .constraints([Constraint::Min(1), Constraint::Length(3)])
         .split(area);
 
-    let items = build_transaction_items(transactions, theme);
+    let items = build_transaction_items(transactions, theme, &app.currency);
     let mut state = create_list_state(app.selected);
     
     let list = List::new(items)
@@ -196,7 +197,7 @@ fn draw_transactions_list(
     f.render_widget(footer, layout[1]);
 }
 
-fn build_transaction_items(transactions: &[Transaction], theme: &Theme) -> Vec<ListItem<'static>> {
+fn build_transaction_items(transactions: &[Transaction], theme: &Theme, currency: &str) -> Vec<ListItem<'static>> {
     let mut items = Vec::new();
     
     items.push(create_table_header(theme));
@@ -211,7 +212,7 @@ fn build_transaction_items(transactions: &[Transaction], theme: &Theme) -> Vec<L
         )));
     } else {
         for tx in transactions {
-            items.push(create_transaction_row(tx, theme));
+            items.push(create_transaction_row(tx, theme, currency));
         }
     }
     
@@ -235,7 +236,7 @@ fn create_divider(theme: &Theme) -> ListItem<'static> {
     ))
 }
 
-fn create_transaction_row(tx: &Transaction, theme: &Theme) -> ListItem<'static> {
+fn create_transaction_row(tx: &Transaction, theme: &Theme, currency: &str) -> ListItem<'static> {
     let color = theme.transaction_color(tx.kind);
     let (icon, kind_label) = match tx.kind {
         TransactionType::Credit => ("↑", "Credit"),
@@ -255,7 +256,7 @@ fn create_transaction_row(tx: &Transaction, theme: &Theme) -> ListItem<'static> 
         ),
         Span::raw(" "),
         Span::styled(
-            format!("₹{:>9.2}", tx.amount),
+            format!("{}{:>9.2}", currency, tx.amount),
             Style::default()
                 .fg(color)
                 .add_modifier(Modifier::BOLD)
@@ -308,6 +309,7 @@ fn draw_stats_view(
     smallest: Option<Transaction>,
     top_tags: &[(Tag, f64)],
     theme: &Theme,
+    currency: &str,
 ) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -389,7 +391,7 @@ fn draw_stats_view(
     f.render_widget(tags_chart, cols[1]);
 
     // Below charts: breakdown paragraph (reuse existing content builder for details)
-    let breakdown_lines = build_stats_content(earned, spent, balance, per_tag, monthly_history, tx_count, largest, smallest, top_tags, theme);
+    let breakdown_lines = build_stats_content(earned, spent, balance, per_tag, monthly_history, tx_count, largest, smallest, top_tags, theme, currency);
     let breakdown = Paragraph::new(breakdown_lines)
         .block(theme.block("Details"))
         .alignment(Alignment::Left);
@@ -424,11 +426,12 @@ fn build_stats_content(
     smallest: Option<Transaction>,
     top_tags: &[(Tag, f64)],
     theme: &Theme,
+    currency: &str,
 ) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
 
     lines.push(Line::raw(""));
-    lines.extend(create_overview_section(earned, spent, balance, theme));
+    lines.extend(create_overview_section(earned, spent, balance, theme, currency));
     lines.push(Line::raw(""));
     lines.push(Line::styled(
         "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -438,7 +441,7 @@ fn build_stats_content(
 
     // Quick stats summary
     lines.push(Line::styled(
-        format!("  Transactions: {}  |  Total Earned: ₹{:.2}  |  Total Spent: ₹{:.2}", tx_count, earned, spent),
+        format!("  Transactions: {}  |  Total Earned: {}{:.2}  |  Total Spent: {}{:.2}", tx_count, currency, earned, currency, spent),
         Style::default().fg(theme.muted),
     ));
     lines.push(Line::raw(""));
@@ -460,9 +463,9 @@ fn build_stats_content(
                 Span::raw("     "),
                 Span::styled(format!("{:<7}", m), Style::default().fg(theme.foreground)),
                 Span::raw("  "),
-                Span::styled(format!("₹{:>9.2}", e), Style::default().fg(theme.credit)),
+                Span::styled(format!("{}{:>9.2}", currency, e), Style::default().fg(theme.credit)),
                 Span::raw("  "),
-                Span::styled(format!("₹{:>9.2}", s), Style::default().fg(theme.debit)),
+                Span::styled(format!("{}{:>9.2}", currency, s), Style::default().fg(theme.debit)),
             ]));
         }
     }
@@ -486,7 +489,7 @@ fn build_stats_content(
                 Span::raw("     "),
                 Span::styled(format!("{}. #{:<12}", i + 1, tag.as_str()), Style::default().fg(theme.foreground)),
                 Span::raw("  "),
-                Span::styled(format!("₹{:>9.2}", amt), Style::default().fg(theme.debit)),
+                Span::styled(format!("{}{:>9.2}", currency, amt), Style::default().fg(theme.debit)),
             ]));
         }
     }
@@ -502,13 +505,13 @@ fn build_stats_content(
     if let Some(tx) = largest {
         lines.push(Line::from(vec![
             Span::raw("     Largest: "),
-            Span::styled(format!("{} | ₹{:.2} | #{}", tx.source, tx.amount, tx.tag.as_str()), Style::default().fg(theme.foreground)),
+            Span::styled(format!("{} | {}{:.2} | #{}", tx.source, currency, tx.amount, tx.tag.as_str()), Style::default().fg(theme.foreground)),
         ]));
     }
     if let Some(tx) = smallest {
         lines.push(Line::from(vec![
             Span::raw("     Smallest: "),
-            Span::styled(format!("{} | ₹{:.2} | #{}", tx.source, tx.amount, tx.tag.as_str()), Style::default().fg(theme.foreground)),
+            Span::styled(format!("{} | {}{:.2} | #{}", tx.source, currency, tx.amount, tx.tag.as_str()), Style::default().fg(theme.foreground)),
         ]));
     }
 
@@ -535,14 +538,14 @@ fn build_stats_content(
                 .add_modifier(Modifier::ITALIC),
         ));
     } else {
-        lines.extend(create_tag_breakdown_section(per_tag, theme));
+        lines.extend(create_tag_breakdown_section(per_tag, theme, currency));
     }
 
     lines.push(Line::raw(""));
     lines
 }
 
-fn create_overview_section(earned: f64, spent: f64, balance: f64, theme: &Theme) -> Vec<Line<'static>> {
+fn create_overview_section(earned: f64, spent: f64, balance: f64, theme: &Theme, currency: &str) -> Vec<Line<'static>> {
     let balance_color = if balance >= 0.0 { theme.credit } else { theme.debit };
     let savings_rate = if earned > 0.0 {
         ((earned - spent) / earned * 100.0).max(0.0)
@@ -561,7 +564,7 @@ fn create_overview_section(earned: f64, spent: f64, balance: f64, theme: &Theme)
         Line::from(vec![
             Span::raw("     Total Earned  : "),
             Span::styled(
-                format!("₹{:>10.2}", earned),
+                format!("{}{:>10.2}", currency, earned),
                 Style::default()
                     .fg(theme.credit)
                     .add_modifier(Modifier::BOLD)
@@ -570,7 +573,7 @@ fn create_overview_section(earned: f64, spent: f64, balance: f64, theme: &Theme)
         Line::from(vec![
             Span::raw("     Total Spent   : "),
             Span::styled(
-                format!("₹{:>10.2}", spent),
+                format!("{}{:>10.2}", currency, spent),
                 Style::default()
                     .fg(theme.debit)
                     .add_modifier(Modifier::BOLD)
@@ -579,7 +582,7 @@ fn create_overview_section(earned: f64, spent: f64, balance: f64, theme: &Theme)
         Line::from(vec![
             Span::raw("     Balance       : "),
             Span::styled(
-                format!("₹{:>10.2}", balance),
+                format!("{}{:>10.2}", currency, balance),
                 Style::default()
                     .fg(balance_color)
                     .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
@@ -600,6 +603,7 @@ fn create_overview_section(earned: f64, spent: f64, balance: f64, theme: &Theme)
 fn create_tag_breakdown_section(
     per_tag: &HashMap<Tag, f64>,
     theme: &Theme,
+    currency: &str,
 ) -> Vec<Line<'static>> {
     let mut tag_vec: Vec<_> = per_tag.iter().collect();
     tag_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
@@ -622,6 +626,7 @@ fn create_tag_breakdown_section(
             percentage,
             max_spent,
             theme,
+            currency,
         ));
     }
     
@@ -634,6 +639,7 @@ fn create_tag_bar(
     percentage: f64,
     max_amount: f64,
     theme: &Theme,
+    currency: &str,
 ) -> Line<'static> {
     let bar_width = calculate_bar_width(amount, max_amount);
     let bar = "█".repeat(bar_width);
@@ -652,7 +658,7 @@ fn create_tag_bar(
         Span::styled(empty_bar, Style::default().fg(theme.subtle)),
         Span::raw("  "),
         Span::styled(
-            format!("₹{:>9.2}", amount),
+            format!("{}{:>9.2}", currency, amount),
             Style::default()
                 .fg(theme.foreground)
                 .add_modifier(Modifier::BOLD)

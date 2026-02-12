@@ -25,6 +25,7 @@ pub struct App {
 
     pub transactions: Vec<Transaction>,
     pub selected: usize,
+    pub currency: String,
 }
 
 impl App {
@@ -46,6 +47,7 @@ impl App {
             tags,
             transactions,
             selected: 0,
+            currency: config.currency,
         }
     }
 
