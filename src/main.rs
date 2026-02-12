@@ -23,14 +23,8 @@ use ratatui::prelude::*;
 use app::App;
 
 fn main() -> io::Result<()> {
-    // ----------------------------
-    // ✅ Init Database
-    // ----------------------------
     let conn = db::init_db().unwrap();
 
-    // ----------------------------
-    // ✅ Terminal Setup
-    // ----------------------------
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -38,28 +32,17 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // ----------------------------
-    // ✅ App State Init
-    // ----------------------------
     let mut app = App::new(&conn);
 
-    // ----------------------------
-    // Main Loop
-    // ----------------------------
     loop {
-        // ----------------------------
-        // ✅ Stats Queries (every frame)
-        // ----------------------------
         let earned = db::total_earned(&conn).unwrap();
         let spent = db::total_spent(&conn).unwrap();
         let balance = earned - spent;
 
         let per_tag = db::spent_per_tag(&conn).unwrap();
 
-        // Additional richer stats computed from in-memory transactions
         let tx_count = app.transactions.len();
 
-        // Largest and smallest transactions by amount
         let largest = app
             .transactions
             .iter()
@@ -72,23 +55,32 @@ fn main() -> io::Result<()> {
             .min_by(|a, b| a.amount.partial_cmp(&b.amount).unwrap_or(std::cmp::Ordering::Equal))
             .cloned();
 
-        // Top tags (descending) from per_tag map
-        let mut top_tags: Vec<(crate::models::Tag, f64)> = per_tag.iter().map(|(t, v)| (t.clone(), *v)).collect();
-        top_tags.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let mut top_tags: Vec<(crate::models::Tag, f64)> =
+            per_tag.iter().map(|(t, v)| (t.clone(), *v)).collect();
 
-        // Monthly history: aggregate by YYYY-MM string
+        top_tags.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         use std::collections::BTreeMap;
         let mut monthly_map: BTreeMap<String, (f64, f64)> = BTreeMap::new();
+
         for tx in &app.transactions {
-            let month = if tx.date.len() >= 7 { tx.date[..7].to_string() } else { tx.date.clone() };
+            let month = if tx.date.len() >= 7 {
+                tx.date[..7].to_string()
+            } else {
+                tx.date.clone()
+            };
+
             let entry = monthly_map.entry(month).or_insert((0.0, 0.0));
+
             match tx.kind {
                 crate::models::TransactionType::Credit => entry.0 += tx.amount,
                 crate::models::TransactionType::Debit => entry.1 += tx.amount,
             }
         }
 
-        // Keep last up to 6 months (BTreeMap is sorted ascending)
         let monthly_history: Vec<(String, f64, f64)> = monthly_map
             .into_iter()
             .rev()
@@ -96,9 +88,6 @@ fn main() -> io::Result<()> {
             .map(|(m, (e, s))| (m, e, s))
             .collect();
 
-        // ----------------------------
-        // Draw UI
-        // ----------------------------
         terminal.draw(|f| {
             ui::draw_ui(
                 f,
@@ -116,9 +105,6 @@ fn main() -> io::Result<()> {
             );
         })?;
 
-        // ----------------------------
-        // Input Handling
-        // ----------------------------
         if event::poll(std::time::Duration::from_millis(200))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
@@ -132,9 +118,6 @@ fn main() -> io::Result<()> {
         }
     }
 
-    // ----------------------------
-    // Cleanup Terminal
-    // ----------------------------
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
