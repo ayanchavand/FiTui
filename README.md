@@ -132,4 +132,4 @@ tags:
 
 ## License
 
-MIT (or add your preferred license)
+MIT
