@@ -149,14 +149,6 @@ Example:
 
 ```yaml
 currency: €
-
-tags:
-  - food
-  - travel
-  - shopping
-  - bills
-  - salary
-  - other
 ```
 
 Common currency symbols: `$`, `€`, `£`, `¥`, `₹`, `₽`, `₩`, `฿`, `₪`, `₦`, `₱`, `₡`, `₲`, `₴`, `₵`
