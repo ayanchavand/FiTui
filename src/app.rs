@@ -4,7 +4,7 @@ use crate::{
     config::load_config,
     db,
    form::TransactionForm,
-    models::{Tag, Transaction},
+    models::{RecurringEntry, Tag, Transaction},
 };
 
 #[derive(PartialEq)]
@@ -24,6 +24,7 @@ pub struct App {
     pub tags: Vec<Tag>,
 
     pub transactions: Vec<Transaction>,
+    pub recurring_entries: Vec<RecurringEntry>,
     pub selected: usize,
     pub currency: String,
 }
@@ -39,6 +40,7 @@ impl App {
             .collect();
 
         let transactions = db::get_transactions(conn).unwrap_or_default();
+        let recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
         Self {
             mode: Mode::Normal,
@@ -46,6 +48,7 @@ impl App {
             editing: None,
             tags,
             transactions,
+            recurring_entries,
             selected: 0,
             currency: config.currency,
         }
@@ -53,6 +56,7 @@ impl App {
 
     pub fn refresh(&mut self, conn: &Connection) {
         self.transactions = db::get_transactions(conn).unwrap_or_default();
+        self.recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
         // Clamp selection if list shrinks
         if self.selected >= self.transactions.len() && self.selected > 0 {
@@ -91,6 +95,18 @@ impl App {
                 &self.form.date,
             )
             .unwrap();
+
+            // If marked as recurring, also add to recurring_entries
+            if self.form.recurring {
+                db::add_recurring_entry(
+                    conn,
+                    &self.form.source,
+                    amount,
+                    self.form.kind,
+                    &tag,
+                )
+                .unwrap();
+            }
         }
 
         self.refresh(conn);

@@ -67,16 +67,18 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
             app.form.active = app.form.active.next();
         }
 
-        // Arrow keys toggle Kind or cycle Tags depending on active field
+        // Arrow keys toggle Kind, cycle Tags, or toggle Recurring depending on active field
         KeyCode::Right => match app.form.active {
             crate::form::Field::Kind => app.form.toggle_kind(),
             crate::form::Field::Tag => app.form.next_tag(app.tags.len()),
+            crate::form::Field::Recurring => app.form.toggle_recurring(),
             _ => {}
         },
 
         KeyCode::Left => match app.form.active {
             crate::form::Field::Kind => app.form.toggle_kind(),
             crate::form::Field::Tag => app.form.prev_tag(app.tags.len()),
+            crate::form::Field::Recurring => app.form.toggle_recurring(),
             _ => {}
         },
 

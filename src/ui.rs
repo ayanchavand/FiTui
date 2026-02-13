@@ -339,9 +339,9 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
         ),
         Line::raw(""),
         Line::raw(""),
-        create_type_selector(&form.kind, theme),
+        create_type_selector(&form.kind, form.active == Field::Kind, theme),
         Line::raw(""),
-        create_tag_selector(&app.tags, form.tag_index, theme),
+        create_tag_selector(&app.tags, form.tag_index, form.active == Field::Tag, theme),
         Line::raw(""),
         Line::raw(""),
         create_form_field(
@@ -353,6 +353,7 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
             theme,
         ),
         Line::raw(""),
+        create_recurring_selector(form.recurring, form.active == Field::Recurring, theme),
         Line::raw(""),
         Line::styled(
             "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -365,7 +366,7 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
             Span::styled("] Next Field  ", theme.muted_text()),
             Span::styled("[", theme.muted_text()),
             Span::styled("←→", Style::default().fg(theme.accent)),
-            Span::styled("] Change Type/Tag  ", theme.muted_text()),
+            Span::styled("] Change Type/Tag/Recurring  ", theme.muted_text()),
             Span::styled("[", theme.muted_text()),
             Span::styled("Enter", Style::default().fg(theme.credit)),
             Span::styled("] Save  ", theme.muted_text()),
@@ -423,15 +424,23 @@ fn create_form_field(
     ])
 }
 
-fn create_type_selector(kind: &crate::models::TransactionType, theme: &Theme) -> Line<'static> {
+fn create_type_selector(kind: &crate::models::TransactionType, is_active: bool, theme: &Theme) -> Line<'static> {
     let (kind_icon, kind_label, kind_style) = match kind {
         crate::models::TransactionType::Credit => ("↑", "Credit (Income)", theme.success()),
         crate::models::TransactionType::Debit => ("↓", "Debit (Expense)", theme.danger()),
     };
 
+    let label_style = if is_active {
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        theme.muted_text()
+    };
+
     Line::from(vec![
         Span::raw("  "),
-        Span::styled("Type    ", theme.muted_text()),
+        Span::styled("Type    ", label_style),
         Span::raw(": "),
         Span::styled(kind_icon, kind_style),
         Span::raw(" "),
@@ -441,12 +450,20 @@ fn create_type_selector(kind: &crate::models::TransactionType, theme: &Theme) ->
     ])
 }
 
-fn create_tag_selector(tags: &[crate::models::Tag], index: usize, theme: &Theme) -> Line<'static> {
+fn create_tag_selector(tags: &[crate::models::Tag], index: usize, is_active: bool, theme: &Theme) -> Line<'static> {
     let tag = tags.get(index).map(|t| t.as_str()).unwrap_or("other");
+
+    let label_style = if is_active {
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        theme.muted_text()
+    };
 
     Line::from(vec![
         Span::raw("  "),
-        Span::styled("Tag     ", theme.muted_text()),
+        Span::styled("Tag     ", label_style),
         Span::raw(": "),
         Span::styled(
             format!("#{}", tag),
@@ -454,6 +471,32 @@ fn create_tag_selector(tags: &[crate::models::Tag], index: usize, theme: &Theme)
                 .fg(theme.accent_soft)
                 .add_modifier(Modifier::ITALIC | Modifier::BOLD)
         ),
+        Span::raw("  "),
+        Span::styled("← →", Style::default().fg(theme.accent)),
+    ])
+}
+
+fn create_recurring_selector(recurring: bool, is_active: bool, theme: &Theme) -> Line<'static> {
+    let status = if recurring { "🔄 Yes" } else { "🚫 No" };
+    let status_style = if recurring { 
+        theme.success() 
+    } else { 
+        Style::default().fg(theme.subtle)
+    };
+
+    let label_style = if is_active {
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        theme.muted_text()
+    };
+
+    Line::from(vec![
+        Span::raw("  "),
+        Span::styled("Recurring", label_style),
+        Span::raw(": "),
+        Span::styled(status, status_style),
         Span::raw("  "),
         Span::styled("← →", Style::default().fg(theme.accent)),
     ])

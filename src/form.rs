@@ -7,6 +7,7 @@ pub enum Field {
     Kind,
     Tag,
     Date,
+    Recurring,
 }
 
 impl Field {
@@ -17,7 +18,8 @@ impl Field {
             Amount => Kind,
             Kind => Tag,
             Tag => Date,
-            Date => Source,
+            Date => Recurring,
+            Recurring => Source,
         }
     }
 }
@@ -31,6 +33,7 @@ pub struct TransactionForm {
     pub tag_index: usize,
 
     pub date: String,
+    pub recurring: bool,
     pub active: Field,
 }
 
@@ -42,6 +45,7 @@ impl TransactionForm {
             kind: TransactionType::Debit,
             tag_index: 0,
             date: "2026-02-11".into(),
+            recurring: false,
             active: Field::Source,
         }
     }
@@ -79,6 +83,10 @@ impl TransactionForm {
             TransactionType::Credit => TransactionType::Debit,
             TransactionType::Debit => TransactionType::Credit,
         };
+    }
+
+    pub fn toggle_recurring(&mut self) {
+        self.recurring = !self.recurring;
     }
 
     pub fn next_tag(&mut self, total_tags: usize) {

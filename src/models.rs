@@ -42,3 +42,13 @@ pub struct Transaction {
     pub tag: Tag,
     pub date: String,
 }
+#[derive(Debug, Clone)]
+pub struct RecurringEntry {
+    pub id: i32,
+    pub source: String,
+    pub amount: f64,
+    pub kind: TransactionType,
+    pub tag: Tag,
+    pub last_inserted_month: String, // Format: "YYYY-MM"
+    pub active: bool,
+}

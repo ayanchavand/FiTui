@@ -20,11 +20,17 @@ use crossterm::{
 };
 
 use ratatui::prelude::*;
+use chrono::Datelike;
 
 use app::App;
 
 fn main() -> io::Result<()> {
     let conn = db::init_db().unwrap();
+
+    // Insert recurring entries for the current month on startup
+    let now = chrono::Local::now();
+    let current_month = format!("{:04}-{:02}", now.year(), now.month());
+    db::insert_recurring_for_month(&conn, &current_month).unwrap();
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

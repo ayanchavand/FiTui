@@ -15,6 +15,7 @@ The interface is keyboard-driven and runs entirely inside the terminal.
 - Local persistence using SQLite
 - Configurable tags stored in a YAML file
 - **Customizable currency support** - set any currency symbol in config
+- **Recurring transactions** - auto-insert monthly transactions (salary, bills, etc.)
 
 ### Screenshots
 
@@ -41,7 +42,7 @@ Stats view:
 ### Form Mode
 
 - `Tab`   : Next field  
-- `← / →` : Toggle type or cycle tags  
+- `← / →` : Toggle type, cycle tags, or toggle recurring  
 - `Enter` : Save transaction  
 - `Esc`   : Cancel  
 
@@ -148,6 +149,32 @@ target/release/fitui
    ```
 
 **Note:** First build in Termux may take 10-15 minutes due to compilation time on mobile devices.
+
+---
+
+## Recurring Transactions
+
+FiTui supports recurring transactions that are automatically inserted each month.
+
+### How It Works
+
+1. When adding a transaction, press Tab to reach the "Recurring" field
+2. Press `←` or `→` to toggle it to "🔄 Yes"
+3. Save the transaction with `Enter`
+4. On app startup each new month, the recurring transaction is automatically re-created
+5. Recurring entries are only inserted once per month, preventing duplicates
+
+### Example Use Cases
+
+- **Monthly salary**: Automatically add income each month
+- **Rent/Mortgage**: Auto-insert fixed housing payments
+- **Subscriptions**: Bill payments (internet, streaming services, etc.)
+- **Fixed expenses**: Insurance, utilities, gym membership
+
+### Current Behavior
+
+Recurring transactions are inserted on the **same date each month** as they were originally created. For example:
+- Create on Feb 15 → Auto-inserts on Mar 15, Apr 15, May 15, etc.
 
 ---
 

@@ -4,7 +4,7 @@ use std::fs;
 
 use directories::ProjectDirs;
 
-use crate::models::{Tag, Transaction, TransactionType};
+use crate::models::{RecurringEntry, Tag, Transaction, TransactionType};
 
 pub fn init_db() -> Result<Connection> {
     // Store DB in the OS-standard application data directory
@@ -28,6 +28,20 @@ pub fn init_db() -> Result<Connection> {
             kind TEXT NOT NULL,
             tag TEXT NOT NULL,
             date TEXT NOT NULL
+        )",
+        [],
+    )?;
+
+    // Create recurring entries table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS recurring_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            amount REAL NOT NULL,
+            kind TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            last_inserted_month TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
         )",
         [],
     )?;
@@ -148,4 +162,105 @@ pub fn spent_per_tag(conn: &Connection) -> Result<HashMap<Tag, f64>> {
     }
 
     Ok(map)
+}
+// Recurring entry functions
+pub fn get_recurring_entries(conn: &Connection) -> Result<Vec<RecurringEntry>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, source, amount, kind, tag, last_inserted_month, active
+         FROM recurring_entries
+         ORDER BY id DESC",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(RecurringEntry {
+            id: row.get(0)?,
+            source: row.get(1)?,
+            amount: row.get(2)?,
+            kind: TransactionType::from_str(&row.get::<_, String>(3)?),
+            tag: Tag::from_str(&row.get::<_, String>(4)?),
+            last_inserted_month: row.get(5)?,
+            active: row.get::<_, i32>(6)? != 0,
+        })
+    })?;
+
+    let mut entries = Vec::new();
+    for entry in rows {
+        entries.push(entry?);
+    }
+
+    Ok(entries)
+}
+
+pub fn add_recurring_entry(
+    conn: &Connection,
+    source: &str,
+    amount: f64,
+    kind: TransactionType,
+    tag: &Tag,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO recurring_entries (source, amount, kind, tag, last_inserted_month, active)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        (
+            source,
+            amount,
+            kind.as_str(),
+            tag.as_str(),
+            "", // Empty string indicates it hasn't been inserted yet
+            1,
+        ),
+    )?;
+
+    Ok(())
+}
+
+pub fn delete_recurring_entry(conn: &Connection, id: i32) -> Result<()> {
+    conn.execute("DELETE FROM recurring_entries WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn toggle_recurring_entry(conn: &Connection, id: i32, active: bool) -> Result<()> {
+    conn.execute(
+        "UPDATE recurring_entries SET active = ?1 WHERE id = ?2",
+        (if active { 1 } else { 0 }, id),
+    )?;
+    Ok(())
+}
+
+// Auto-insert recurring entries for the current month
+pub fn insert_recurring_for_month(conn: &Connection, current_month: &str) -> Result<()> {
+    // Get all active recurring entries that haven't been inserted this month
+    let mut stmt = conn.prepare(
+        "SELECT id, source, amount, kind, tag FROM recurring_entries
+         WHERE active = 1 AND last_inserted_month != ?1",
+    )?;
+
+    let entries: Vec<_> = stmt
+        .query_map([current_month], |row| {
+            Ok((
+                row.get::<_, i32>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, f64>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Insert each recurring entry as a transaction for this month
+    for (rec_id, source, amount, kind, tag) in entries {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let kind_enum = TransactionType::from_str(&kind);
+        let tag_obj = Tag::from_str(&tag);
+
+        add_transaction(conn, &source, amount, kind_enum, &tag_obj, &today)?;
+
+        // Update the last_inserted_month
+        conn.execute(
+            "UPDATE recurring_entries SET last_inserted_month = ?1 WHERE id = ?2",
+            (current_month, rec_id),
+        )?;
+    }
+
+    Ok(())
 }
