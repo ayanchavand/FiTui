@@ -14,6 +14,7 @@ The interface is keyboard-driven and runs entirely inside the terminal.
 - Spending breakdown grouped by tag
 - Local persistence using SQLite
 - Configurable tags stored in a YAML file
+- **Customizable currency support** - set any currency symbol in config
 
 ### Screenshots
 
@@ -139,6 +140,26 @@ tags:
 ```
 
 ---
+
+## Currency
+
+You can customize the currency symbol displayed throughout FiTui by setting the `currency` field in `config.yaml`. The default currency is `₹`.
+
+Example:
+
+```yaml
+currency: €
+
+tags:
+  - food
+  - travel
+  - shopping
+  - bills
+  - salary
+  - other
+```
+
+Common currency symbols: `$`, `€`, `£`, `¥`, `₹`, `₽`, `₩`, `฿`, `₪`, `₦`, `₱`, `₡`, `₲`, `₴`, `₵`
 
 ## License
 
