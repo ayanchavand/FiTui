@@ -1,5 +1,4 @@
 # FiTui
-
 FiTui is a small terminal-based personal finance tracker built in Rust.  
 It lets you record transactions, view totals, and see spending breakdowns by tag.  
 The interface is keyboard-driven and runs entirely inside the terminal.
@@ -7,6 +6,7 @@ The interface is keyboard-driven and runs entirely inside the terminal.
 ---
 
 ## Features
+[![Built With Ratatui](https://ratatui.rs/built-with-ratatui/badge.svg)](https://ratatui.rs/)
 
 - Add credit or debit transactions
 - Navigate and delete entries
