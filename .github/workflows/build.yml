@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write   # needed to create releases
+  contents: write
 
 jobs:
   build:
@@ -18,39 +18,34 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build
+      - name: Build release binary
         run: cargo build --release
 
-      # Rename outputs nicely
-      - name: Prepare Linux binary
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cp target/release/fitui fitui-linux
-
-      - name: Prepare Windows binary
-        if: matrix.os == 'windows-latest'
-        run: |
-          copy target\release\FiTui.exe fitui-windows.exe
-
-      # Upload for release job
-      - name: Upload artifact (Linux)
+      # ---------------------------
+      # Upload Linux binary
+      # ---------------------------
+      - name: Upload Linux artifact
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: linux-binary
-          path: fitui-linux
+          name: fitui-linux
+          path: target/release/fitui
 
-      - name: Upload artifact (Windows)
+      # ---------------------------
+      # Upload Windows binary
+      # ---------------------------
+      - name: Upload Windows artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: windows-binary
-          path: fitui-windows.exe
+          name: fitui-windows
+          path: target/release/fitui.exe
 
 
   release:
@@ -62,16 +57,18 @@ jobs:
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
-          name: linux-binary
+          name: fitui-linux
+          path: .
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: windows-binary
+          name: fitui-windows
+          path: .
 
-      - name: Create Release and Upload Assets
+      - name: Create Release and Upload Binaries
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            fitui-linux
-            fitui-windows.exe
+            fitui
+            fitui.exe
