@@ -121,6 +121,34 @@ target/release/fitui
    fitui
    ```
 
+### Termux (Android)
+
+1. Install Rust (if not already installed):
+   ```bash
+   pkg update && pkg upgrade
+   pkg install rust
+   ```
+
+2. Clone or download the FiTui source code into Termux
+
+3. Build the release binary:
+   ```bash
+   cargo build --release
+   ```
+
+4. The binary will be located at `target/release/fitui`. Run it with:
+   ```bash
+   ./target/release/fitui
+   ```
+
+   Or copy it to your PATH:
+   ```bash
+   cp target/release/fitui ~/.local/bin/
+   fitui
+   ```
+
+**Note:** First build in Termux may take 10-15 minutes due to compilation time on mobile devices.
+
 ---
 
 ## Tags
