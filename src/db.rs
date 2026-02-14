@@ -15,6 +15,8 @@ pub fn init_db() -> Result<Connection> {
     fs::create_dir_all(data_dir).expect("Failed to create data directory");
 
     let db_path = data_dir.join("budget.db");
+    
+    #[cfg(debug_assertions)]
     println!("Database location: {:?}", db_path);
 
     let conn = Connection::open(db_path)?;
