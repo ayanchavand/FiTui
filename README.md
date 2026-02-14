@@ -2,7 +2,8 @@
 FiTui is a small terminal-based personal finance tracker built in Rust.  
 It lets you record transactions, view totals, and see spending breakdowns by tag.  
 The interface is keyboard-driven and runs entirely inside the terminal.
-Version: 0.1.1
+
+Version: 0.1.4
 ---
 
 ## Features
@@ -13,9 +14,8 @@ Version: 0.1.1
 - View overall stats (earned, spent, balance)
 - Spending breakdown grouped by tag
 - Local persistence using SQLite
-- Configurable tags stored in a YAML file
-- **Customizable currency support** - set any currency symbol in config
-- **Recurring transactions** - auto-insert monthly transactions (salary, bills, etc.)
+- Configurable tags and cuurency stored in a YAML file
+- Recurring transactions auto-insert monthly transactions (salary, bills, etc.)
 
 ### Screenshots
 
