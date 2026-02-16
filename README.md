@@ -4,7 +4,7 @@
 
 A lightweight terminal-based personal finance tracker built in Rust. Record transactions, track spending, and view financial insights, all from your terminal.
 
-**Version:** 0.1.4
+**Version:** 0.1.5
 
 ---
 
@@ -23,6 +23,14 @@ A lightweight terminal-based personal finance tracker built in Rust. Record tran
 | ![Main interface](assets/main_page.png) | ![Stats view](assets/stats_page.png) |
 
 ---
+## Change Log
+
+### v0.1.5
+- Added confirmation popup before deleting transactions
+- Improved popup styling + overall UI polish
+- Date field now defaults to today
+- Fixed Cargo edition metadata
+- Debug builds now store DB locally for easier testing
 
 ## Controls
 
@@ -131,7 +139,6 @@ Automate monthly transactions like salary, rent, and subscriptions.
 ### 🚧 Coming Soon
 
 - **Flexible Recurring Intervals** – Set transactions to repeat daily, weekly, or monthly
-- **Delete Confirmation** – Confirmation dialog to prevent accidental deletions
 - **Enhanced Stats Page** – More visualizations, charts, and filtering options
 - **CSV Import** – Bulk import transactions from PayPal, GPay, bank statements, and other sources
 - **Budget Goals & Alerts** – Set monthly spending limits per tag with notifications
