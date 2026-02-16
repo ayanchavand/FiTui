@@ -7,16 +7,24 @@ use directories::ProjectDirs;
 use crate::models::{RecurringEntry, Tag, Transaction, TransactionType};
 
 pub fn init_db() -> Result<Connection> {
-    // Store DB in the OS-standard application data directory
-    let proj_dirs =
-        ProjectDirs::from("com", "ayan", "fitui").expect("Could not determine data directory");
+     let db_path = if cfg!(debug_assertions) {
+        // Debug build: store DB locally inside the project folder
+        let local_dir = std::path::Path::new("./data");
+        fs::create_dir_all(local_dir).expect("Failed to create local debug data directory");
 
-    let data_dir = proj_dirs.data_dir();
-    fs::create_dir_all(data_dir).expect("Failed to create data directory");
+        local_dir.join("budget.db")
+    } else {
+        // Release build: store DB in OS-standard application data directory
+        let proj_dirs =
+            ProjectDirs::from("com", "ayan", "fitui")
+                .expect("Could not determine data directory");
 
-    let db_path = data_dir.join("budget.db");
-    
-    #[cfg(debug_assertions)]
+        let data_dir = proj_dirs.data_dir();
+        fs::create_dir_all(data_dir).expect("Failed to create data directory");
+
+        data_dir.join("budget.db")
+    };
+
     println!("Database location: {:?}", db_path);
 
     let conn = Connection::open(db_path)?;
