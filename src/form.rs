@@ -44,7 +44,7 @@ impl TransactionForm {
             amount: String::new(),
             kind: TransactionType::Debit,
             tag_index: 0,
-            date: "2026-02-11".into(),
+            date: chrono::Local::now().format("%Y-%m-%d").to_string(),
             recurring: false,
             active: Field::Source,
         }
