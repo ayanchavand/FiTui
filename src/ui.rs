@@ -1,32 +1,23 @@
 use ratatui::{
     prelude::*,
-    widgets::{Clear, List, ListItem, ListState, Paragraph, Block, Padding},
+    widgets::{Block, Clear, List, ListItem, ListState, Padding, Paragraph},
 };
 
 use crate::{
-    app::{App, Mode},
+    app::{App, Mode, PopupKind},
     form::Field,
     models::{Transaction, TransactionType},
     stats,
-    theme::Theme,
     stats::StatsSnapshot,
+    theme::Theme,
 };
 
-pub fn draw_ui(
-    f: &mut Frame,
-    app: &App,
-    snapshot: &StatsSnapshot,
-) {
+pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
     let theme = Theme::default();
 
     match app.mode {
         Mode::Stats => {
-            stats::draw_stats_view(
-                f,
-                snapshot,
-                &theme,
-                &app.currency,
-            )
+            stats::draw_stats_view(f, snapshot, &theme, &app.currency);
         }
 
         Mode::Adding => {
@@ -39,8 +30,20 @@ pub fn draw_ui(
                 app,
                 &theme,
             );
-
             draw_transaction_form(f, app, &theme);
+        }
+
+        Mode::Popup => {
+            draw_main_view(
+                f,
+                &app.transactions,
+                snapshot.earned,
+                snapshot.spent,
+                snapshot.balance,
+                app,
+                &theme,
+            );
+            draw_popup(f, app, &theme);
         }
 
         _ => {
@@ -54,6 +57,28 @@ pub fn draw_ui(
                 &theme,
             );
         }
+    }
+}
+
+fn draw_popup(f: &mut Frame, app: &App, theme: &Theme) {
+    if let Some(popup) = &app.popup {
+        let area = centered_rect(55, 25, f.size());
+        f.render_widget(Clear, area);
+
+        let (title, body) = match popup {
+            PopupKind::Confirm { title, message, .. } => {
+                (title.as_str(), format!("{message}\n\n[y] Yes    [n] No"))
+            }
+            PopupKind::Info { title, message } => {
+                (title.as_str(), format!("{message}\n\n[Esc] Close"))
+            }
+        };
+
+        let widget = Paragraph::new(body)
+            .block(theme.popup(title))
+            .alignment(Alignment::Center);
+
+        f.render_widget(widget, area);
     }
 }
 
@@ -94,7 +119,6 @@ fn draw_header(
         ])
         .split(area);
 
-    // Earned Card
     let earned_content = vec![
         Line::from(vec![
             Span::styled("↑ ", Style::default().fg(theme.credit)),
@@ -108,12 +132,13 @@ fn draw_header(
                 .add_modifier(Modifier::BOLD),
         ),
     ];
-    let earned_card = Paragraph::new(earned_content)
-        .block(theme.panel())
-        .alignment(Alignment::Center);
-    f.render_widget(earned_card, chunks[0]);
+    f.render_widget(
+        Paragraph::new(earned_content)
+            .block(theme.panel())
+            .alignment(Alignment::Center),
+        chunks[0],
+    );
 
-    // Balance Card (highlighted)
     let balance_color = if balance >= 0.0 {
         theme.credit
     } else {
@@ -129,18 +154,19 @@ fn draw_header(
                 .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         ),
     ];
-    let balance_card = Paragraph::new(balance_content)
-        .block(
-            Block::default()
-                .borders(ratatui::widgets::Borders::ALL)
-                .border_set(ratatui::symbols::border::ROUNDED)
-                .border_style(Style::default().fg(theme.accent))
-                .style(Style::default().bg(theme.surface))
-        )
-        .alignment(Alignment::Center);
-    f.render_widget(balance_card, chunks[1]);
+    f.render_widget(
+        Paragraph::new(balance_content)
+            .block(
+                Block::default()
+                    .borders(ratatui::widgets::Borders::ALL)
+                    .border_set(ratatui::symbols::border::ROUNDED)
+                    .border_style(Style::default().fg(theme.accent))
+                    .style(Style::default().bg(theme.surface)),
+            )
+            .alignment(Alignment::Center),
+        chunks[1],
+    );
 
-    // Spent Card
     let spent_content = vec![
         Line::from(vec![
             Span::styled("↓ ", Style::default().fg(theme.debit)),
@@ -154,10 +180,12 @@ fn draw_header(
                 .add_modifier(Modifier::BOLD),
         ),
     ];
-    let spent_card = Paragraph::new(spent_content)
-        .block(theme.panel())
-        .alignment(Alignment::Center);
-    f.render_widget(spent_card, chunks[2]);
+    f.render_widget(
+        Paragraph::new(spent_content)
+            .block(theme.panel())
+            .alignment(Alignment::Center),
+        chunks[2],
+    );
 }
 
 fn draw_transactions_list(
@@ -174,7 +202,7 @@ fn draw_transactions_list(
 
     let items = build_transaction_items(transactions, theme, &app.currency);
     let mut state = create_list_state(app.selected);
-    
+
     let list = List::new(items)
         .block(theme.block(" Transactions "))
         .highlight_style(theme.highlight_style())
@@ -182,139 +210,23 @@ fn draw_transactions_list(
 
     f.render_stateful_widget(list, layout[0], &mut state);
 
-    // Enhanced footer with better visual hierarchy
     let footer_block = Block::default()
         .borders(ratatui::widgets::Borders::TOP)
         .border_style(Style::default().fg(theme.subtle))
         .style(Style::default().bg(theme.background))
         .padding(Padding::new(1, 1, 0, 0));
 
-    let footer_content = vec![
-        Line::from(vec![
-            Span::styled("  [", theme.muted_text()),
-            Span::styled("↑↓", Style::default().fg(theme.accent)),
-            Span::styled("] Navigate  ", theme.muted_text()),
-            Span::styled("[", theme.muted_text()),
-            Span::styled("a", Style::default().fg(theme.credit)),
-            Span::styled("] Add  ", theme.muted_text()),
-            Span::styled("[", theme.muted_text()),
-            Span::styled("e", Style::default().fg(theme.accent)),
-            Span::styled("] Edit  ", theme.muted_text()),
-            Span::styled("[", theme.muted_text()),
-            Span::styled("d", Style::default().fg(theme.debit)),
-            Span::styled("] Delete  ", theme.muted_text()),
-            Span::styled("[", theme.muted_text()),
-            Span::styled("s", Style::default().fg(theme.accent)),
-            Span::styled("] Stats  ", theme.muted_text()),
-            Span::styled("[", theme.muted_text()),
-            Span::styled("q", Style::default().fg(theme.subtle)),
-            Span::styled("] Quit", theme.muted_text()),
-        ]),
-    ];
-
-    let footer = Paragraph::new(footer_content)
-        .block(footer_block);
-    f.render_widget(footer, layout[1]);
-}
-
-fn build_transaction_items(transactions: &[Transaction], theme: &Theme, currency: &str) -> Vec<ListItem<'static>> {
-    let mut items = Vec::new();
-    
-    items.push(create_table_header(theme));
-    items.push(create_divider(theme));
-    
-    if transactions.is_empty() {
-        items.push(ListItem::new(Line::styled(
-            "  No transactions yet. Press 'a' to add one!",
-            Style::default()
-                .fg(theme.muted)
-                .add_modifier(Modifier::ITALIC),
-        )));
-    } else {
-        for tx in transactions {
-            items.push(create_transaction_row(tx, theme, currency));
-        }
-    }
-    
-    items
-}
-
-fn create_table_header(theme: &Theme) -> ListItem<'static> {
-    ListItem::new(Line::from(vec![
-        Span::styled("  Date       ", Style::default().fg(theme.muted).add_modifier(Modifier::BOLD)),
-        Span::styled("Source          ", Style::default().fg(theme.muted).add_modifier(Modifier::BOLD)),
-        Span::styled("Amount      ", Style::default().fg(theme.muted).add_modifier(Modifier::BOLD)),
-        Span::styled("Type      ", Style::default().fg(theme.muted).add_modifier(Modifier::BOLD)),
-        Span::styled("Tag", Style::default().fg(theme.muted).add_modifier(Modifier::BOLD)),
+    let footer = Paragraph::new(Line::from(vec![
+        Span::styled("  [↑↓] Navigate  ", theme.muted_text()),
+        Span::styled("[a] Add  ", theme.muted_text()),
+        Span::styled("[e] Edit  ", theme.muted_text()),
+        Span::styled("[d] Delete  ", theme.muted_text()),
+        Span::styled("[s] Stats  ", theme.muted_text()),
+        Span::styled("[q] Quit", theme.muted_text()),
     ]))
-}
+    .block(footer_block);
 
-fn create_divider(theme: &Theme) -> ListItem<'static> {
-    ListItem::new(Line::styled(
-        "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        Style::default().fg(theme.subtle),
-    ))
-}
-
-fn create_transaction_row(tx: &Transaction, theme: &Theme, currency: &str) -> ListItem<'static> {
-    let color = theme.transaction_color(tx.kind);
-    let (icon, kind_label) = match tx.kind {
-        TransactionType::Credit => ("↑", "Credit"),
-        TransactionType::Debit => ("↓", "Debit"),
-    };
-
-    let line = Line::from(vec![
-        Span::raw("  "),
-        Span::styled(
-            format!("{:<11}", tx.date),
-            Style::default().fg(theme.muted)
-        ),
-        Span::raw(" "),
-        Span::styled(
-            format!("{:<15}", truncate_string(&tx.source, 15)),
-            Style::default().fg(theme.foreground)
-        ),
-        Span::raw(" "),
-        Span::styled(
-            format!("{}{:>9.2}", currency, tx.amount),
-            Style::default()
-                .fg(color)
-                .add_modifier(Modifier::BOLD)
-        ),
-        Span::raw("  "),
-        Span::styled(
-            icon,
-            Style::default().fg(color).add_modifier(Modifier::BOLD)
-        ),
-        Span::raw(" "),
-        Span::styled(
-            format!("{:<7}", kind_label),
-            Style::default().fg(color)
-        ),
-        Span::raw(" "),
-        Span::styled(
-            format!("#{}", tx.tag.as_str()),
-            Style::default()
-                .fg(theme.accent_soft)
-                .add_modifier(Modifier::ITALIC)
-        ),
-    ]);
-
-    ListItem::new(line)
-}
-
-fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max_len - 1])
-    }
-}
-
-fn create_list_state(selected: usize) -> ListState {
-    let mut state = ListState::default();
-    state.select(Some(selected + 2));
-    state
+    f.render_widget(footer, layout[1]);
 }
 
 fn draw_transaction_form(f: &mut Frame, app: &App, theme: &Theme) {
@@ -335,9 +247,131 @@ fn draw_transaction_form(f: &mut Frame, app: &App, theme: &Theme) {
     f.render_widget(popup, area);
 }
 
+/* KEEP ALL YOUR EXISTING HELPERS BELOW UNCHANGED:
+   - build_transaction_items
+   - create_table_header
+   - create_divider
+   - create_transaction_row
+   - truncate_string
+   - create_list_state
+   - build_form_content
+   - create_form_field
+   - create_type_selector
+   - create_tag_selector
+   - create_recurring_selector
+*/
+fn build_transaction_items(
+    transactions: &[Transaction],
+    theme: &Theme,
+    currency: &str,
+) -> Vec<ListItem<'static>> {
+    let mut items = Vec::new();
+    items.push(create_table_header(theme));
+    items.push(create_divider(theme));
+    if transactions.is_empty() {
+        items.push(ListItem::new(Line::styled(
+            " No transactions yet. Press 'a' to add one!",
+            Style::default()
+                .fg(theme.muted)
+                .add_modifier(Modifier::ITALIC),
+        )));
+    } else {
+        for tx in transactions {
+            items.push(create_transaction_row(tx, theme, currency));
+        }
+    }
+    items
+}
+fn create_table_header(theme: &Theme) -> ListItem<'static> {
+    ListItem::new(Line::from(vec![
+        Span::styled(
+            " Date ",
+            Style::default()
+                .fg(theme.muted)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Source ",
+            Style::default()
+                .fg(theme.muted)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Amount ",
+            Style::default()
+                .fg(theme.muted)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Type ",
+            Style::default()
+                .fg(theme.muted)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Tag",
+            Style::default()
+                .fg(theme.muted)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]))
+}
+fn create_divider(theme: &Theme) -> ListItem<'static> {
+    ListItem::new(Line::styled(
+        " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        Style::default().fg(theme.subtle),
+    ))
+}
+fn create_transaction_row(tx: &Transaction, theme: &Theme, currency: &str) -> ListItem<'static> {
+    let color = theme.transaction_color(tx.kind);
+    let (icon, kind_label) = match tx.kind {
+        TransactionType::Credit => ("↑", "Credit"),
+        TransactionType::Debit => ("↓", "Debit"),
+    };
+    let line = Line::from(vec![
+        Span::raw(" "),
+        Span::styled(format!("{:<11}", tx.date), Style::default().fg(theme.muted)),
+        Span::raw(" "),
+        Span::styled(
+            format!("{:<15}", truncate_string(&tx.source, 15)),
+            Style::default().fg(theme.foreground),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            format!("{}{:>9.2}", currency, tx.amount),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            icon,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+        Span::styled(format!("{:<7}", kind_label), Style::default().fg(color)),
+        Span::raw(" "),
+        Span::styled(
+            format!("#{}", tx.tag.as_str()),
+            Style::default()
+                .fg(theme.accent_soft)
+                .add_modifier(Modifier::ITALIC),
+        ),
+    ]);
+    ListItem::new(line)
+}
+fn truncate_string(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}…", &s[..max_len - 1])
+    }
+}
+fn create_list_state(selected: usize) -> ListState {
+    let mut state = ListState::default();
+    state.select(Some(selected + 2));
+    state
+}
 fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
     let form = &app.form;
-    
     vec![
         Line::raw(""),
         create_form_field(
@@ -376,27 +410,26 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
         create_recurring_selector(form.recurring, form.active == Field::Recurring, theme),
         Line::raw(""),
         Line::styled(
-            "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             Style::default().fg(theme.subtle),
         ),
         Line::raw(""),
         Line::from(vec![
-            Span::styled("  [", theme.muted_text()),
+            Span::styled(" [", theme.muted_text()),
             Span::styled("Tab", Style::default().fg(theme.accent)),
-            Span::styled("] Next Field  ", theme.muted_text()),
+            Span::styled("] Next Field ", theme.muted_text()),
             Span::styled("[", theme.muted_text()),
             Span::styled("←→", Style::default().fg(theme.accent)),
-            Span::styled("] Change Type/Tag/Recurring  ", theme.muted_text()),
+            Span::styled("] Change Type/Tag/Recurring ", theme.muted_text()),
             Span::styled("[", theme.muted_text()),
             Span::styled("Enter", Style::default().fg(theme.credit)),
-            Span::styled("] Save  ", theme.muted_text()),
+            Span::styled("] Save ", theme.muted_text()),
             Span::styled("[", theme.muted_text()),
             Span::styled("Esc", Style::default().fg(theme.debit)),
             Span::styled("] Cancel", theme.muted_text()),
         ]),
     ]
 }
-
 fn create_form_field(
     label: &str,
     value: &str,
@@ -406,13 +439,11 @@ fn create_form_field(
     theme: &Theme,
 ) -> Line<'static> {
     let is_active = active_field == field;
-    
     let display_value = if value.is_empty() && !is_active {
         placeholder
     } else {
         value
     };
-
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
@@ -420,7 +451,6 @@ fn create_form_field(
     } else {
         theme.muted_text()
     };
-
     let value_style = if is_active {
         Style::default()
             .fg(theme.foreground)
@@ -433,23 +463,23 @@ fn create_form_field(
     } else {
         Style::default().fg(theme.foreground)
     };
-
     let cursor = if is_active { "│" } else { "" };
-
     Line::from(vec![
-        Span::raw("  "),
+        Span::raw(" "),
         Span::styled(format!("{:<8}", label), label_style),
         Span::raw(": "),
         Span::styled(format!("{}{}", display_value, cursor), value_style),
     ])
 }
-
-fn create_type_selector(kind: &crate::models::TransactionType, is_active: bool, theme: &Theme) -> Line<'static> {
+fn create_type_selector(
+    kind: &crate::models::TransactionType,
+    is_active: bool,
+    theme: &Theme,
+) -> Line<'static> {
     let (kind_icon, kind_label, kind_style) = match kind {
         crate::models::TransactionType::Credit => ("↑", "Credit (Income)", theme.success()),
         crate::models::TransactionType::Debit => ("↓", "Debit (Expense)", theme.danger()),
     };
-
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
@@ -457,22 +487,24 @@ fn create_type_selector(kind: &crate::models::TransactionType, is_active: bool, 
     } else {
         theme.muted_text()
     };
-
     Line::from(vec![
-        Span::raw("  "),
-        Span::styled("Type    ", label_style),
+        Span::raw(" "),
+        Span::styled("Type ", label_style),
         Span::raw(": "),
         Span::styled(kind_icon, kind_style),
         Span::raw(" "),
         Span::styled(kind_label, kind_style),
-        Span::raw("  "),
+        Span::raw(" "),
         Span::styled("← →", Style::default().fg(theme.accent)),
     ])
 }
-
-fn create_tag_selector(tags: &[crate::models::Tag], index: usize, is_active: bool, theme: &Theme) -> Line<'static> {
+fn create_tag_selector(
+    tags: &[crate::models::Tag],
+    index: usize,
+    is_active: bool,
+    theme: &Theme,
+) -> Line<'static> {
     let tag = tags.get(index).map(|t| t.as_str()).unwrap_or("other");
-
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
@@ -480,30 +512,27 @@ fn create_tag_selector(tags: &[crate::models::Tag], index: usize, is_active: boo
     } else {
         theme.muted_text()
     };
-
     Line::from(vec![
-        Span::raw("  "),
-        Span::styled("Tag     ", label_style),
+        Span::raw(" "),
+        Span::styled("Tag ", label_style),
         Span::raw(": "),
         Span::styled(
             format!("#{}", tag),
             Style::default()
                 .fg(theme.accent_soft)
-                .add_modifier(Modifier::ITALIC | Modifier::BOLD)
+                .add_modifier(Modifier::ITALIC | Modifier::BOLD),
         ),
-        Span::raw("  "),
+        Span::raw(" "),
         Span::styled("← →", Style::default().fg(theme.accent)),
     ])
 }
-
 fn create_recurring_selector(recurring: bool, is_active: bool, theme: &Theme) -> Line<'static> {
     let status = if recurring { "🔄 Yes" } else { "🚫 No" };
-    let status_style = if recurring { 
-        theme.success() 
-    } else { 
+    let status_style = if recurring {
+        theme.success()
+    } else {
         Style::default().fg(theme.subtle)
     };
-
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
@@ -511,13 +540,12 @@ fn create_recurring_selector(recurring: bool, is_active: bool, theme: &Theme) ->
     } else {
         theme.muted_text()
     };
-
     Line::from(vec![
-        Span::raw("  "),
+        Span::raw(" "),
         Span::styled("Recurring", label_style),
         Span::raw(": "),
         Span::styled(status, status_style),
-        Span::raw("  "),
+        Span::raw(" "),
         Span::styled("← →", Style::default().fg(theme.accent)),
     ])
 }
