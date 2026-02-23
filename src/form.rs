@@ -11,18 +11,31 @@ pub enum Field {
     RecurringInterval,
 }
 
+// Canonical visual/focus order for the form fields. Use this as the single
+// source of truth for rendering order and keyboard traversal.
+pub const FIELD_ORDER: &[Field] = &[
+    Field::Source,
+    Field::Amount,
+    Field::Date,
+    Field::Kind,
+    Field::Tag,
+    Field::Recurring,
+    Field::RecurringInterval,
+];
+
 impl Field {
     pub fn next(self) -> Self {
-        use Field::*;
-        match self {
-            Source => Amount,
-            Amount => Kind,
-            Kind => Tag,
-            Tag => Date,
-            Date => Recurring,
-            Recurring => RecurringInterval,
-            RecurringInterval => Source,
+        // Find the current field in FIELD_ORDER and return the next one,
+        // wrapping around to the first.
+        let len = FIELD_ORDER.len();
+        for (i, &f) in FIELD_ORDER.iter().enumerate() {
+            if f == self {
+                return FIELD_ORDER[(i + 1) % len];
+            }
         }
+
+        // Fallback: if not found (shouldn't happen), return Source
+        Field::Source
     }
 }
 
