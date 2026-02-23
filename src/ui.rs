@@ -142,6 +142,10 @@ fn draw_transactions_list(
         Span::styled("[", theme.muted_text()),
         Span::styled("e", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
         Span::styled("] Edit  ", theme.muted_text()),
+
+        Span::styled("[", theme.muted_text()),
+        Span::styled("v", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled("] Manage Recurring  ", theme.muted_text()),
         
         Span::styled("[", theme.muted_text()),
         Span::styled("d", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
