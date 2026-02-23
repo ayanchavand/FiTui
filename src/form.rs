@@ -1,6 +1,6 @@
 use crate::models::{TransactionType, RecurringInterval};
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Field {
     Source,
     Amount,
@@ -132,5 +132,75 @@ impl TransactionForm {
         } else {
             self.tag_index -= 1;
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{TransactionType, RecurringInterval};
+
+    #[test]
+    fn field_next_wraps() {
+        assert_eq!(Field::Source.next(), Field::Amount);
+        // Walk through full cycle and end up at Source again
+        let mut f = Field::Source;
+        for _ in 0..FIELD_ORDER.len() {
+            f = f.next();
+        }
+        assert_eq!(f, Field::Source);
+    }
+
+    #[test]
+    fn toggle_kind_swaps() {
+        let mut form = TransactionForm::new();
+        assert_eq!(form.kind, TransactionType::Debit);
+        form.toggle_kind();
+        assert_eq!(form.kind, TransactionType::Credit);
+        form.toggle_kind();
+        assert_eq!(form.kind, TransactionType::Debit);
+    }
+
+    #[test]
+    fn tag_index_wraps_next_prev() {
+        let mut form = TransactionForm::new();
+        form.tag_index = 0;
+        form.next_tag(3);
+        assert_eq!(form.tag_index, 1);
+        form.next_tag(3);
+        form.next_tag(3);
+        assert_eq!(form.tag_index, 0); // wrapped
+
+        form.prev_tag(3);
+        assert_eq!(form.tag_index, 2); // wrapped backwards
+    }
+
+    #[test]
+    fn push_and_pop_chars_affect_fields() {
+        let mut form = TransactionForm::new();
+        form.active = Field::Source;
+        form.push_char('a');
+        form.push_char('b');
+        assert_eq!(form.source, "ab");
+        form.pop_char();
+        assert_eq!(form.source, "a");
+
+        form.active = Field::Amount;
+        form.push_char('1');
+        form.push_char('0');
+        assert_eq!(form.amount, "10");
+        form.pop_char();
+        assert_eq!(form.amount, "1");
+    }
+
+    #[test]
+    fn interval_next_prev_cycle() {
+        let mut form = TransactionForm::new();
+        assert_eq!(form.recurring_interval, RecurringInterval::Monthly);
+        form.next_interval();
+        assert_eq!(form.recurring_interval, RecurringInterval::Daily);
+        form.prev_interval();
+        assert_eq!(form.recurring_interval, RecurringInterval::Monthly);
     }
 }
