@@ -67,70 +67,75 @@ pub fn init_db() -> Result<Connection> {
 
 /// Migrate old recurring_entries table to new schema with interval and original_date columns
 fn migrate_recurring_entries_schema(conn: &Connection) -> Result<()> {
-    // Check if the old columns exist
-    let has_old_schema = conn
-        .query_row(
-            "PRAGMA table_info(recurring_entries)",
-            [],
-            |_| Ok(()),
-        )
-        .is_ok();
+    // First, check if the old last_inserted_month column exists
+    let has_old_column = conn
+        .prepare("SELECT last_inserted_month FROM recurring_entries LIMIT 1")
+        .map(|_| true)
+        .unwrap_or(false);
 
-    if !has_old_schema {
-        return Ok(());
-    }
-
-    // Check if interval column exists
-    let has_interval = conn
-        .query_row(
-            "PRAGMA table_info(recurring_entries) WHERE name='interval'",
-            [],
-            |_| Ok(()),
-        )
-        .is_ok();
-
-    if !has_interval {
-        // Add missing columns with defaults
-        conn.execute(
-            "ALTER TABLE recurring_entries ADD COLUMN interval TEXT NOT NULL DEFAULT 'monthly'",
-            [],
-        )?;
-    }
-
-    let has_original_date = conn
-        .query_row(
-            "PRAGMA table_info(recurring_entries) WHERE name='original_date'",
-            [],
-            |_| Ok(()),
-        )
-        .is_ok();
-
-    if !has_original_date {
-        conn.execute(
-            "ALTER TABLE recurring_entries ADD COLUMN original_date TEXT NOT NULL DEFAULT ''",
-            [],
-        )?;
-    }
-
+    // Check if the new last_inserted_date column exists
     let has_last_inserted_date = conn
-        .query_row(
-            "PRAGMA table_info(recurring_entries) WHERE name='last_inserted_date'",
-            [],
-            |_| Ok(()),
-        )
-        .is_ok();
+        .prepare("SELECT last_inserted_date FROM recurring_entries LIMIT 1")
+        .map(|_| true)
+        .unwrap_or(false);
 
-    if !has_last_inserted_date {
-        conn.execute(
+    // If old column exists but new one doesn't, add the new column and migrate data
+    if has_old_column && !has_last_inserted_date {
+        let _ = conn.execute(
             "ALTER TABLE recurring_entries ADD COLUMN last_inserted_date TEXT NOT NULL DEFAULT ''",
             [],
-        )?;
+        );
 
-        // Migrate last_inserted_month data to last_inserted_date if it exists
-        conn.execute(
-            "UPDATE recurring_entries SET last_inserted_date = last_inserted_month WHERE last_inserted_month != ''",
+        // Migrate last_inserted_month data to last_inserted_date
+        let _ = conn.execute(
+            "UPDATE recurring_entries SET last_inserted_date = COALESCE(last_inserted_month, '') WHERE 1=1",
             [],
-        )?;
+        );
+    } else if !has_last_inserted_date {
+        // Only add the column if neither old nor new exists
+        let _ = conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN last_inserted_date TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+    }
+
+    // Check and add interval column if missing
+    let has_interval = conn
+        .prepare("SELECT interval FROM recurring_entries LIMIT 1")
+        .map(|_| true)
+        .unwrap_or(false);
+
+    if !has_interval {
+        let _ = conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN interval TEXT NOT NULL DEFAULT 'monthly'",
+            [],
+        );
+    }
+
+    // Check and add original_date column if missing
+    let has_original_date = conn
+        .prepare("SELECT original_date FROM recurring_entries LIMIT 1")
+        .map(|_| true)
+        .unwrap_or(false);
+
+    if !has_original_date {
+        let _ = conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN original_date TEXT NOT NULL DEFAULT ''",
+            [],
+        );
+    }
+
+    // Check and add active column if missing
+    let has_active = conn
+        .prepare("SELECT active FROM recurring_entries LIMIT 1")
+        .map(|_| true)
+        .unwrap_or(false);
+
+    if !has_active {
+        let _ = conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
+            [],
+        );
     }
 
     Ok(())

@@ -107,4 +107,29 @@ impl Theme {
             .border_style(Style::default().fg(self.accent))
             .style(Style::default().bg(self.surface))
     }
+
+    // Style helper methods to reduce code duplication
+    pub fn separator_span(&self) -> Span<'static> {
+        Span::styled(" │ ", Style::default().fg(self.subtle))
+    }
+
+    pub fn cursor_indicator(&self) -> Span<'static> {
+        Span::styled("►", Style::default().fg(self.accent).add_modifier(Modifier::BOLD))
+    }
+
+    pub fn bracket_open(&self) -> Span<'static> {
+        Span::styled("[", self.muted_text())
+    }
+
+    pub fn bracket_close(&self) -> Span<'static> {
+        Span::styled("] ", self.muted_text())
+    }
+
+    pub fn dimmed_span<'a>(&self, text: &'a str) -> Span<'a> {
+        Span::styled(text, Style::default().fg(self.muted))
+    }
+
+    pub fn highlight_span<'a>(&self, text: &'a str) -> Span<'a> {
+        Span::styled(text, Style::default().fg(self.accent).add_modifier(Modifier::BOLD))
+    }
 }

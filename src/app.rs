@@ -238,4 +238,16 @@ impl App {
     pub fn selected_transaction(&self) -> Option<&Transaction> {
         self.transactions.get(self.selected)
     }
+
+    /// Helper: get recurring entry for a transaction (if active)
+    /// Returns the first matching active recurring entry with the same source, amount, kind, and tag
+    pub fn get_recurring_for_transaction(&self, tx: &Transaction) -> Option<&RecurringEntry> {
+        self.recurring_entries.iter().find(|r| {
+            r.source == tx.source
+                && r.amount == tx.amount
+                && r.kind == tx.kind
+                && r.tag == tx.tag
+                && r.active
+        })
+    }
 }
