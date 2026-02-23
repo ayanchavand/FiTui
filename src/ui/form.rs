@@ -32,19 +32,7 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
     let form = &app.form;
     vec![
         Line::raw(""),
-        Line::from(vec![
-            Span::raw("  "),
-            Span::styled(
-                "Fill in the transaction details below",
-                Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC)
-            ),
-        ]),
-        Line::raw(""),
-        Line::styled(
-            "  ───────────────────────────────────────────────────",
-            Style::default().fg(theme.subtle),
-        ),
-        Line::raw(""),
+        
         create_form_field(
             "Source",
             &form.source,
@@ -72,11 +60,8 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
             theme,
         ),
         Line::raw(""),
-        Line::styled(
-            "  ───────────────────────────────────────────────────",
-            Style::default().fg(theme.subtle),
-        ),
         Line::raw(""),
+
         create_type_selector(&form.kind, form.active == Field::Kind, theme),
         Line::raw(""),
         create_tag_selector(&app.tags, form.tag_index, form.active == Field::Tag, theme),
@@ -84,11 +69,6 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
         create_recurring_selector(form.recurring, form.active == Field::Recurring, theme),
         Line::raw(""),
         create_recurring_interval_selector(&form.recurring_interval, form.active == Field::RecurringInterval, form.recurring, theme),
-        Line::raw(""),
-        Line::styled(
-            "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            Style::default().fg(theme.accent_soft),
-        ),
         Line::raw(""),
         Line::from(vec![
             Span::raw("  "),
@@ -130,7 +110,7 @@ fn create_form_field(
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            .add_modifier(Modifier::BOLD)
     } else {
         theme.muted_text()
     };
@@ -182,7 +162,7 @@ fn create_type_selector(
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            .add_modifier(Modifier::BOLD)
     } else {
         theme.muted_text()
     };
@@ -288,7 +268,7 @@ fn create_recurring_interval_selector(interval: &RecurringInterval, is_active: b
     let label_style = if is_active {
         Style::default()
             .fg(theme.accent)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            .add_modifier(Modifier::BOLD)
     } else {
         theme.muted_text()
     };
@@ -310,7 +290,7 @@ fn create_recurring_interval_selector(interval: &RecurringInterval, is_active: b
     Line::from(vec![
         indicator,
         Span::styled("Interval", label_style),
-        Span::styled("│ ", Style::default().fg(theme.subtle)),
+        Span::styled(" │ ", Style::default().fg(theme.subtle)),
         Span::styled(interval_text, interval_style),
         Span::raw("  "),
         Span::styled(

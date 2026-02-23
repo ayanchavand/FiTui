@@ -80,7 +80,6 @@ impl Theme {
     pub fn cursor_style(&self) -> Style {
         Style::default()
             .fg(self.accent)
-            .add_modifier(Modifier::REVERSED)
     }
 
     pub fn block<'a>(&self, title: &'a str) -> Block<'a> {
@@ -103,7 +102,7 @@ impl Theme {
         Block::default()
             .title(Span::styled(title, self.title()))
             .borders(Borders::ALL)
-            .border_set(ratatui::symbols::border::DOUBLE)
+            .border_set(ratatui::symbols::border::ROUNDED)
             .border_style(Style::default().fg(self.accent))
             .style(Style::default().bg(self.surface))
     }
