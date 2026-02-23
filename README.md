@@ -4,7 +4,7 @@
 
 A lightweight terminal-based personal finance tracker built in Rust. Record transactions, track spending, and view financial insights, all from your terminal.
 
-**Version:** 0.1.5
+**Version:** 0.2.0
 
 ---
 
@@ -25,29 +25,19 @@ A lightweight terminal-based personal finance tracker built in Rust. Record tran
 ---
 ## Change Log
 
-### v0.1.5
-- Added confirmation popup before deleting transactions
-- Improved popup styling + overall UI polish
-- Date field now defaults to today
-- Fixed Cargo edition metadata
-- Debug builds now store DB locally for easier testing
+### v0.2.0
+- Added recurring payments management window
+- Enhanced recurring transaction handling logic
+- Added get_recurring_for_transaction method in App
+- Improved recurring entries migration logic to support updated schema
+- Modularized UI components (transaction form, header, modal rendering)
+- Improved popup rendering and visual separation
+- Fixed form field order mismatch to align with navigation logic
+- Removed redundant code and improved internal readability
+- Added unit tests for form, stats, and model logic
+- Added integration tests using in-memory SQLite
+- Added migration safety tests
 
-## Controls
-
-| Mode | Key | Action |
-|------|-----|--------|
-| **Normal** | `↑/↓` | Navigate transactions |
-| | `a` | Add transaction |
-| | `d` | Delete selected |
-| | `s` | Open stats |
-| | `q` | Quit |
-| **Form** | `Tab` | Next field |
-| | `←/→` | Toggle type/tag/recurring |
-| | `Enter` | Save |
-| | `Esc` | Cancel |
-| **Stats** | `Esc` | Back to main |
-
----
 
 ## Installation
 
@@ -117,28 +107,10 @@ tags:
 
 ---
 
-## Recurring Transactions
-
-Automate monthly transactions like salary, rent, and subscriptions.
-
-**Setup:**
-1. Add a transaction and press `Tab` to reach "Recurring" field
-2. Toggle to `🔄 Yes` with `←/→`
-3. Save with `Enter`
-
-**Behavior:**
-- Auto-inserts on the same date each month (e.g., created Feb 15 → auto-adds Mar 15, Apr 15, etc.)
-- Prevents duplicates (only once per month)
-
-**Use Cases:** Monthly salary, rent, subscriptions, insurance, utilities
-
----
 
 ## Planned Features
 
 ### 🚧 Coming Soon
-
-- **Flexible Recurring Intervals** – Set transactions to repeat daily, weekly, or monthly
 - **Enhanced Stats Page** – More visualizations, charts, and filtering options
 - **CSV Import** – Bulk import transactions from PayPal, GPay, bank statements, and other sources
 - **Budget Goals & Alerts** – Set monthly spending limits per tag with notifications
