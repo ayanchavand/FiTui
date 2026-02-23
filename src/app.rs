@@ -7,24 +7,21 @@ use crate::{
     models::{RecurringEntry, Tag, Transaction},
 };
 
-/// Main UI modes
 #[derive(PartialEq)]
 pub enum Mode {
     Normal,
     Adding,
     Stats,
-    Popup, // 👈 generic popup mode
+    Popup,
     RecurringManagement,
 }
 
-/// Actions a popup can trigger
 #[derive(Clone)]
 pub enum PopupAction {
     DeleteTransaction(i32),
     Quit,
 }
 
-/// Popup types (reusable for future dialogs)
 #[derive(Clone)]
 pub enum PopupKind {
     Confirm {
@@ -41,21 +38,13 @@ pub enum PopupKind {
 pub struct App {
     pub mode: Mode,
     pub form: TransactionForm,
-
-    // When Some(id) we're editing an existing transaction
     pub editing: Option<i32>,
-
-    // Tags loaded from YAML config
     pub tags: Vec<Tag>,
-
     pub transactions: Vec<Transaction>,
     pub recurring_entries: Vec<RecurringEntry>,
     pub selected: usize,
-    pub selected_recurring: usize, // For recurring entries management screen
-
+    pub selected_recurring: usize,
     pub currency: String,
-
-    // 👇 Popup state
     pub popup: Option<PopupKind>,
 }
 
@@ -82,23 +71,19 @@ impl App {
             selected: 0,
             selected_recurring: 0,
             currency: config.currency,
-
-            popup: None, // 👈 init popup
+            popup: None,
         }
     }
 
-    /// Refresh transactions + recurring entries from DB
     pub fn refresh(&mut self, conn: &Connection) {
         self.transactions = db::get_transactions(conn).unwrap_or_default();
         self.recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
-        // Clamp selection if list shrinks
         if self.selected >= self.transactions.len() && self.selected > 0 {
             self.selected -= 1;
         }
     }
 
-    /// Save transaction (new or edit)
     pub fn save_transaction(&mut self, conn: &Connection) {
         let amount: f64 = self.form.amount.trim().parse().unwrap_or(0.0);
 
@@ -132,7 +117,6 @@ impl App {
             )
             .unwrap();
 
-            // If marked as recurring, also add to recurring_entries
             if self.form.recurring {
                 db::add_recurring_entry(
                     conn,
@@ -150,7 +134,6 @@ impl App {
         self.refresh(conn);
     }
 
-    /// Begin editing currently selected transaction
     pub fn begin_edit_selected(&mut self) {
         if self.transactions.is_empty() {
             return;
@@ -162,7 +145,6 @@ impl App {
         self.form.amount = format!("{:.2}", tx.amount);
         self.form.kind = tx.kind;
 
-        // Find tag index matching the transaction's tag
         self.form.tag_index = self
             .tags
             .iter()
@@ -172,8 +154,13 @@ impl App {
         self.form.date = tx.date.clone();
         self.form.active = crate::form::Field::Source;
 
-        // Check if this transaction is also a recurring entry
-        let recurring_entry = self.recurring_entries.iter().find(|r| r.source == tx.source && r.amount == tx.amount && r.kind == tx.kind && r.tag == tx.tag);
+        let recurring_entry = self.recurring_entries.iter().find(|r| {
+            r.source == tx.source
+                && r.amount == tx.amount
+                && r.kind == tx.kind
+                && r.tag == tx.tag
+        });
+
         if let Some(entry) = recurring_entry {
             self.form.recurring = true;
             self.form.recurring_interval = entry.interval.clone();
@@ -186,7 +173,6 @@ impl App {
         self.editing = Some(tx.id);
     }
 
-    /// Delete currently selected transaction (direct delete)
     pub fn delete_selected(&mut self, conn: &Connection) {
         if self.transactions.is_empty() {
             return;
@@ -198,11 +184,6 @@ impl App {
         self.refresh(conn);
     }
 
-    // ============================================================
-    // POPUP SYSTEM (Reusable)
-    // ============================================================
-
-    /// Open a confirm popup
     pub fn open_confirm_popup(
         &mut self,
         title: &str,
@@ -218,7 +199,6 @@ impl App {
         self.mode = Mode::Popup;
     }
 
-    /// Open an info popup
     pub fn open_info_popup(&mut self, title: &str, message: String) {
         self.popup = Some(PopupKind::Info {
             title: title.into(),
@@ -228,19 +208,15 @@ impl App {
         self.mode = Mode::Popup;
     }
 
-    /// Close popup and return to Normal mode
     pub fn close_popup(&mut self) {
         self.popup = None;
         self.mode = Mode::Normal;
     }
 
-    /// Helper: get selected transaction safely
     pub fn selected_transaction(&self) -> Option<&Transaction> {
         self.transactions.get(self.selected)
     }
 
-    /// Helper: get recurring entry for a transaction (if active)
-    /// Returns the first matching active recurring entry with the same source, amount, kind, and tag
     pub fn get_recurring_for_transaction(&self, tx: &Transaction) -> Option<&RecurringEntry> {
         self.recurring_entries.iter().find(|r| {
             r.source == tx.source

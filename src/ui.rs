@@ -117,7 +117,7 @@ fn draw_transactions_list(
     let mut state = create_list_state(app.selected);
 
     let list = List::new(items)
-        .block(theme.block(" 💰 Transactions "))
+        .block(theme.block("Transactions "))
         .highlight_style(theme.highlight_style())
         .highlight_symbol("▶ ");
 
@@ -172,7 +172,6 @@ fn build_transaction_items(
     if transactions.is_empty() {
         items.push(ListItem::new(Line::from(vec![
             Span::raw("   "),
-            Span::styled("📋 ", Style::default().fg(theme.accent)),
             Span::styled(
                 "No transactions yet. Press ",
                 Style::default()
@@ -186,7 +185,7 @@ fn build_transaction_items(
                     .add_modifier(Modifier::BOLD)
             ),
             Span::styled(
-                " to add one!",
+                " to add one",
                 Style::default()
                     .fg(theme.muted)
                     .add_modifier(Modifier::ITALIC)
@@ -202,9 +201,9 @@ fn build_transaction_items(
 
 fn create_table_header(theme: &Theme) -> ListItem<'static> {
     ListItem::new(Line::from(vec![
-        Span::raw(" "),
+        Span::raw("   "),
         Span::styled(
-            "📅 Date ",
+            "Date ",
             Style::default()
                 .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
@@ -238,7 +237,7 @@ fn create_table_header(theme: &Theme) -> ListItem<'static> {
 
 fn create_divider(theme: &Theme) -> ListItem<'static> {
     ListItem::new(Line::styled(
-        " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         Style::default().fg(theme.subtle),
     ))
 }
@@ -331,7 +330,7 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
 
     // Header
     let header = Paragraph::new(Line::from(vec![
-        Span::styled(" 📅 Recurring Entries ", 
+        Span::styled(" Recurring Entries ", 
             Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
     ]))
     .block(theme.block(" "))
@@ -341,7 +340,7 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
 
     // Recurring entries list
     if app.recurring_entries.is_empty() {
-        let empty = Paragraph::new("No recurring entries yet. Press 'a' to create one!")
+        let empty = Paragraph::new("No recurring entries yet.")
             .style(Style::default().fg(theme.muted));
         f.render_widget(empty, layout[1]);
     } else {

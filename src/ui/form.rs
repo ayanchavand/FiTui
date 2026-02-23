@@ -15,9 +15,9 @@ pub fn draw_transaction_form(f: &mut Frame, app: &App, theme: &Theme) {
     let form_content = build_form_content(app, theme);
 
     let title = if app.editing.is_some() {
-        " ✏️  Edit Transaction "
+        " Edit Transaction "
     } else {
-        " ➕ Add New Transaction "
+        " Add New Transaction "
     };
 
     let popup = Paragraph::new(form_content)
@@ -34,7 +34,6 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
         Line::raw(""),
         Line::from(vec![
             Span::raw("  "),
-            Span::styled("📝 ", Style::default().fg(theme.accent)),
             Span::styled(
                 "Fill in the transaction details below",
                 Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC)
