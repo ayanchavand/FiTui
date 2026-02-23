@@ -7,28 +7,11 @@ use directories::ProjectDirs;
 
 use crate::models::{RecurringEntry, RecurringInterval, Tag, Transaction, TransactionType};
 
-pub fn init_db() -> Result<Connection> {
-     let db_path = if cfg!(debug_assertions) {
-        // Debug build: store DB locally inside the project folder
-        let local_dir = std::path::Path::new("./data");
-        fs::create_dir_all(local_dir).expect("Failed to create local debug data directory");
+/// Initialize the database from a provided path. Useful for tests (`:memory:`) or custom locations.
+pub fn init_db_with_path(path: &std::path::Path) -> Result<Connection> {
+    println!("Database location: {:?}", path);
 
-        local_dir.join("budget.db")
-    } else {
-        // Release build: store DB in OS-standard application data directory
-        let proj_dirs =
-            ProjectDirs::from("com", "ayan", "fitui")
-                .expect("Could not determine data directory");
-
-        let data_dir = proj_dirs.data_dir();
-        fs::create_dir_all(data_dir).expect("Failed to create data directory");
-
-        data_dir.join("budget.db")
-    };
-
-    println!("Database location: {:?}", db_path);
-
-    let conn = Connection::open(db_path)?;
+    let conn = Connection::open(path)?;
 
     // Create schema on first run if it doesn't exist yet
     conn.execute(
@@ -65,8 +48,35 @@ pub fn init_db() -> Result<Connection> {
     Ok(conn)
 }
 
+/// Initialize DB in-memory for tests.
+pub fn init_in_memory() -> Result<Connection> {
+    init_db_with_path(std::path::Path::new(":memory:"))
+}
+
+pub fn init_db() -> Result<Connection> {
+    let db_path = if cfg!(debug_assertions) {
+        // Debug build: store DB locally inside the project folder
+        let local_dir = std::path::Path::new("./data");
+        fs::create_dir_all(local_dir).expect("Failed to create local debug data directory");
+
+        local_dir.join("budget.db")
+    } else {
+        // Release build: store DB in OS-standard application data directory
+        let proj_dirs =
+            ProjectDirs::from("com", "ayan", "fitui")
+                .expect("Could not determine data directory");
+
+        let data_dir = proj_dirs.data_dir();
+        fs::create_dir_all(data_dir).expect("Failed to create data directory");
+
+        data_dir.join("budget.db")
+    };
+
+    init_db_with_path(&db_path)
+}
+
 /// Migrate old recurring_entries table to new schema with interval and original_date columns
-fn migrate_recurring_entries_schema(conn: &Connection) -> Result<()> {
+pub fn migrate_recurring_entries_schema(conn: &Connection) -> Result<()> {
     // First, check if the old last_inserted_month column exists
     let has_old_column = conn
         .prepare("SELECT last_inserted_month FROM recurring_entries LIMIT 1")
@@ -416,4 +426,46 @@ pub fn insert_recurring_transactions(conn: &Connection) -> Result<()> {
 // Keep the old function name for backwards compatibility
 pub fn insert_recurring_for_month(conn: &Connection, _current_month: &str) -> Result<()> {
     insert_recurring_transactions(conn)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::models::{RecurringInterval, Tag, TransactionType};
+
+    fn setup_conn() -> Connection {
+        init_in_memory().expect("failed to init in-memory db")
+    }
+
+    #[test]
+    fn totals_are_calculated() {
+        let conn = setup_conn();
+
+        add_transaction(&conn, "pay", 100.0, TransactionType::Credit, &Tag::from_str("salary"), "2026-02-23").unwrap();
+        add_transaction(&conn, "buy", 40.0, TransactionType::Debit, &Tag::from_str("food"), "2026-02-23").unwrap();
+
+        let earned = total_earned(&conn).unwrap();
+        let spent = total_spent(&conn).unwrap();
+
+        assert_eq!(earned, 100.0);
+        assert_eq!(spent, 40.0);
+
+        let per_tag = spent_per_tag(&conn).unwrap();
+        assert_eq!(per_tag.get(&Tag::from_str("food")).copied().unwrap_or(0.0), 40.0);
+    }
+
+    #[test]
+    fn recurring_roundtrip() {
+        let conn = setup_conn();
+
+        add_recurring_entry(&conn, "rent", 500.0, TransactionType::Debit, &Tag::from_str("housing"), &RecurringInterval::Monthly, "2026-02-23").unwrap();
+
+        let entries = get_recurring_entries(&conn).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].source, "rent");
+        assert_eq!(entries[0].amount, 500.0);
+        assert_eq!(entries[0].interval, RecurringInterval::Monthly);
+    }
 }
