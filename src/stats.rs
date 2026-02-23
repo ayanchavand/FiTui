@@ -610,3 +610,75 @@ pub fn handle_stats(app: &mut App, key: KeyCode) -> bool {
 
     false
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Transaction, TransactionType, Tag};
+
+    fn tx(id: i32, source: &str, amount: f64, kind: TransactionType, tag: &str, date: &str) -> Transaction {
+        Transaction {
+            id,
+            source: source.to_string(),
+            amount,
+            kind,
+            tag: Tag::from_str(tag),
+            date: date.to_string(),
+        }
+    }
+
+    #[test]
+    fn calculate_earned_and_spent() {
+        let transactions = vec![
+            tx(1, "a", 200.0, TransactionType::Credit, "salary", "2026-02-01"),
+            tx(2, "b", 50.0, TransactionType::Debit, "food", "2026-02-02"),
+            tx(3, "c", 25.0, TransactionType::Debit, "misc", "2026-02-03"),
+        ];
+
+        let earned = calculate_earned(&transactions);
+        let spent = calculate_spent(&transactions);
+
+        assert_eq!(earned, 200.0);
+        assert_eq!(spent, 75.0);
+    }
+
+    #[test]
+    fn monthly_history_groups_and_orders() {
+        let transactions = vec![
+            tx(1, "a", 100.0, TransactionType::Credit, "x", "2026-01-05"),
+            tx(2, "b", 30.0, TransactionType::Debit, "y", "2026-02-10"),
+            tx(3, "c", 50.0, TransactionType::Credit, "x", "2026-02-15"),
+            tx(4, "d", 20.0, TransactionType::Debit, "z", "2025-12-31"),
+        ];
+
+        let months = calculate_monthly_history(&transactions);
+
+        // Expect descending months (latest first)
+        assert!(months.len() >= 3);
+        assert_eq!(months[0].0, "2026-02");
+        // Check earned/spent values for 2026-02
+        let feb = &months[0];
+        assert_eq!(feb.1, 50.0); // earned
+        assert_eq!(feb.2, 30.0); // spent
+    }
+
+    #[test]
+    fn top_tags_sort_descending() {
+        let mut map = std::collections::HashMap::new();
+        map.insert(Tag::from_str("a"), 10.0);
+        map.insert(Tag::from_str("b"), 50.0);
+        map.insert(Tag::from_str("c"), 30.0);
+
+        let top = get_top_tags(&map);
+        assert_eq!(top[0].0, Tag::from_str("b"));
+        assert_eq!(top[1].0, Tag::from_str("c"));
+        assert_eq!(top[2].0, Tag::from_str("a"));
+    }
+
+    #[test]
+    fn calculate_bar_width_handles_zero_max() {
+        assert_eq!(calculate_bar_width(0.0, 0.0), 0);
+        assert!(calculate_bar_width(5.0, 10.0) > 0);
+    }
+}
