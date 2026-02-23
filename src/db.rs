@@ -1,10 +1,11 @@
 use rusqlite::{Connection, Result};
 use std::collections::HashMap;
 use std::fs;
+use chrono::Datelike;
 
 use directories::ProjectDirs;
 
-use crate::models::{RecurringEntry, Tag, Transaction, TransactionType};
+use crate::models::{RecurringEntry, RecurringInterval, Tag, Transaction, TransactionType};
 
 pub fn init_db() -> Result<Connection> {
      let db_path = if cfg!(debug_assertions) {
@@ -50,13 +51,89 @@ pub fn init_db() -> Result<Connection> {
             amount REAL NOT NULL,
             kind TEXT NOT NULL,
             tag TEXT NOT NULL,
-            last_inserted_month TEXT NOT NULL,
+            interval TEXT NOT NULL DEFAULT 'monthly',
+            original_date TEXT NOT NULL,
+            last_inserted_date TEXT NOT NULL DEFAULT '',
             active INTEGER NOT NULL DEFAULT 1
         )",
         [],
     )?;
 
+    // Migrate existing recurring_entries table if it has old schema
+    migrate_recurring_entries_schema(&conn)?;
+
     Ok(conn)
+}
+
+/// Migrate old recurring_entries table to new schema with interval and original_date columns
+fn migrate_recurring_entries_schema(conn: &Connection) -> Result<()> {
+    // Check if the old columns exist
+    let has_old_schema = conn
+        .query_row(
+            "PRAGMA table_info(recurring_entries)",
+            [],
+            |_| Ok(()),
+        )
+        .is_ok();
+
+    if !has_old_schema {
+        return Ok(());
+    }
+
+    // Check if interval column exists
+    let has_interval = conn
+        .query_row(
+            "PRAGMA table_info(recurring_entries) WHERE name='interval'",
+            [],
+            |_| Ok(()),
+        )
+        .is_ok();
+
+    if !has_interval {
+        // Add missing columns with defaults
+        conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN interval TEXT NOT NULL DEFAULT 'monthly'",
+            [],
+        )?;
+    }
+
+    let has_original_date = conn
+        .query_row(
+            "PRAGMA table_info(recurring_entries) WHERE name='original_date'",
+            [],
+            |_| Ok(()),
+        )
+        .is_ok();
+
+    if !has_original_date {
+        conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN original_date TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+
+    let has_last_inserted_date = conn
+        .query_row(
+            "PRAGMA table_info(recurring_entries) WHERE name='last_inserted_date'",
+            [],
+            |_| Ok(()),
+        )
+        .is_ok();
+
+    if !has_last_inserted_date {
+        conn.execute(
+            "ALTER TABLE recurring_entries ADD COLUMN last_inserted_date TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+
+        // Migrate last_inserted_month data to last_inserted_date if it exists
+        conn.execute(
+            "UPDATE recurring_entries SET last_inserted_date = last_inserted_month WHERE last_inserted_month != ''",
+            [],
+        )?;
+    }
+
+    Ok(())
 }
 
 pub fn get_transactions(conn: &Connection) -> Result<Vec<Transaction>> {
@@ -176,7 +253,7 @@ pub fn spent_per_tag(conn: &Connection) -> Result<HashMap<Tag, f64>> {
 // Recurring entry functions
 pub fn get_recurring_entries(conn: &Connection) -> Result<Vec<RecurringEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT id, source, amount, kind, tag, last_inserted_month, active
+        "SELECT id, source, amount, kind, tag, interval, original_date, last_inserted_date, active
          FROM recurring_entries
          ORDER BY id DESC",
     )?;
@@ -188,8 +265,10 @@ pub fn get_recurring_entries(conn: &Connection) -> Result<Vec<RecurringEntry>> {
             amount: row.get(2)?,
             kind: TransactionType::from_str(&row.get::<_, String>(3)?),
             tag: Tag::from_str(&row.get::<_, String>(4)?),
-            last_inserted_month: row.get(5)?,
-            active: row.get::<_, i32>(6)? != 0,
+            interval: RecurringInterval::from_str(&row.get::<_, String>(5)?),
+            original_date: row.get(6)?,
+            last_inserted_date: row.get(7)?,
+            active: row.get::<_, i32>(8)? != 0,
         })
     })?;
 
@@ -207,15 +286,19 @@ pub fn add_recurring_entry(
     amount: f64,
     kind: TransactionType,
     tag: &Tag,
+    interval: &RecurringInterval,
+    original_date: &str,
 ) -> Result<()> {
     conn.execute(
-        "INSERT INTO recurring_entries (source, amount, kind, tag, last_inserted_month, active)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO recurring_entries (source, amount, kind, tag, interval, original_date, last_inserted_date, active)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         (
             source,
             amount,
             kind.as_str(),
             tag.as_str(),
+            interval.as_str(),
+            original_date,
             "", // Empty string indicates it hasn't been inserted yet
             1,
         ),
@@ -237,40 +320,95 @@ pub fn toggle_recurring_entry(conn: &Connection, id: i32, active: bool) -> Resul
     Ok(())
 }
 
-// Auto-insert recurring entries for the current month
-pub fn insert_recurring_for_month(conn: &Connection, current_month: &str) -> Result<()> {
-    // Get all active recurring entries that haven't been inserted this month
+// Auto-insert recurring entries based on their interval
+pub fn insert_recurring_transactions(conn: &Connection) -> Result<()> {
+    let now = chrono::Local::now();
+    let today_str = now.format("%Y-%m-%d").to_string();
+    let current_week = format!("{:04}-W{:02}", now.year(), now.iso_week().week());
+    let current_month = format!("{:04}-{:02}", now.year(), now.month());
+
+    // Get all active recurring entries
     let mut stmt = conn.prepare(
-        "SELECT id, source, amount, kind, tag FROM recurring_entries
-         WHERE active = 1 AND last_inserted_month != ?1",
+        "SELECT id, source, amount, kind, tag, interval, original_date, last_inserted_date
+         FROM recurring_entries
+         WHERE active = 1",
     )?;
 
     let entries: Vec<_> = stmt
-        .query_map([current_month], |row| {
+        .query_map([], |row| {
             Ok((
                 row.get::<_, i32>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, f64>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
-    // Insert each recurring entry as a transaction for this month
-    for (rec_id, source, amount, kind, tag) in entries {
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    // Process each recurring entry
+    for (rec_id, source, amount, kind, tag, interval_str, original_date, last_inserted_date) in entries {
+        let interval = RecurringInterval::from_str(&interval_str);
         let kind_enum = TransactionType::from_str(&kind);
         let tag_obj = Tag::from_str(&tag);
 
-        add_transaction(conn, &source, amount, kind_enum, &tag_obj, &today)?;
+        let should_insert = match interval {
+            RecurringInterval::Daily => {
+                // Insert if we haven't inserted today
+                last_inserted_date != today_str
+            }
+            RecurringInterval::Weekly => {
+                // Extract day of week from original date
+                if let Ok(original_ndt) = chrono::NaiveDate::parse_from_str(&original_date, "%Y-%m-%d") {
+                    let original_dow = original_ndt.weekday();
+                    let today_dow = now.weekday();
+                    
+                    // Check if this is the same day of the week and hasn't been inserted this week
+                    original_dow == today_dow && last_inserted_date != current_week
+                } else {
+                    false
+                }
+            }
+            RecurringInterval::Monthly => {
+                // Extract day of month from original date
+                if let Ok(original_ndt) = chrono::NaiveDate::parse_from_str(&original_date, "%Y-%m-%d") {
+                    let original_day = original_ndt.day();
+                    let today_day = now.day();
+                    
+                    // Check if this is the same day of month and hasn't been inserted this month
+                    original_day == today_day && last_inserted_date != current_month
+                } else {
+                    false
+                }
+            }
+        };
 
-        // Update the last_inserted_month
-        conn.execute(
-            "UPDATE recurring_entries SET last_inserted_month = ?1 WHERE id = ?2",
-            (current_month, rec_id),
-        )?;
+        if should_insert {
+            // Insert as a transaction with today's date
+            add_transaction(conn, &source, amount, kind_enum, &tag_obj, &today_str)?;
+
+            // Update the last_inserted_date based on interval
+            let new_last_inserted = match interval {
+                RecurringInterval::Daily => today_str.clone(),
+                RecurringInterval::Weekly => current_week.clone(),
+                RecurringInterval::Monthly => current_month.clone(),
+            };
+
+            conn.execute(
+                "UPDATE recurring_entries SET last_inserted_date = ?1 WHERE id = ?2",
+                (new_last_inserted, rec_id),
+            )?;
+        }
     }
 
     Ok(())
+}
+
+
+// Keep the old function name for backwards compatibility
+pub fn insert_recurring_for_month(conn: &Connection, _current_month: &str) -> Result<()> {
+    insert_recurring_transactions(conn)
 }

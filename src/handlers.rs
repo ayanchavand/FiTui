@@ -12,6 +12,7 @@ pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 
         // 👇 New popup mode
         Mode::Popup => handle_popup(app, key, conn),
+        Mode::RecurringManagement => handle_recurring_management(app, key, conn),
     }
 }
 
@@ -70,6 +71,11 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 
         KeyCode::Char('s') => {
             app.mode = Mode::Stats;
+        }
+
+        KeyCode::Char('v') => {
+            app.mode = Mode::RecurringManagement;
+            app.selected_recurring = 0;
         }
 
         KeyCode::Up => {
@@ -132,6 +138,7 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
             crate::form::Field::Kind => app.form.toggle_kind(),
             crate::form::Field::Tag => app.form.next_tag(app.tags.len()),
             crate::form::Field::Recurring => app.form.toggle_recurring(),
+            crate::form::Field::RecurringInterval => app.form.next_interval(),
             _ => {}
         },
 
@@ -139,6 +146,7 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
             crate::form::Field::Kind => app.form.toggle_kind(),
             crate::form::Field::Tag => app.form.prev_tag(app.tags.len()),
             crate::form::Field::Recurring => app.form.toggle_recurring(),
+            crate::form::Field::RecurringInterval => app.form.prev_interval(),
             _ => {}
         },
 
@@ -154,6 +162,60 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
             app.save_transaction(conn);
             app.form.reset();
             app.mode = Mode::Normal;
+        }
+
+        _ => {}
+    }
+
+    false
+}
+
+//
+// ---------------- RECURRING MANAGEMENT MODE ----------------
+//
+
+fn handle_recurring_management(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+    let len = app.recurring_entries.len();
+
+    match key {
+        KeyCode::Esc => {
+            app.mode = Mode::Normal;
+        }
+
+        KeyCode::Up => {
+            if app.selected_recurring > 0 {
+                app.selected_recurring -= 1;
+            }
+        }
+
+        KeyCode::Down => {
+            if app.selected_recurring + 1 < len {
+                app.selected_recurring += 1;
+            }
+        }
+
+        KeyCode::Char(' ') => {
+            // Toggle active/inactive for selected recurring entry
+            if !app.recurring_entries.is_empty() {
+                let entry = &app.recurring_entries[app.selected_recurring];
+                let new_active = !entry.active;
+                crate::db::toggle_recurring_entry(conn, entry.id, new_active).unwrap();
+                app.refresh(conn);
+            }
+        }
+
+        KeyCode::Char('d') => {
+            // Delete selected recurring entry
+            if !app.recurring_entries.is_empty() {
+                let entry = &app.recurring_entries[app.selected_recurring];
+                crate::db::delete_recurring_entry(conn, entry.id).unwrap();
+                app.refresh(conn);
+                
+                // Clamp selection if needed
+                if app.selected_recurring >= app.recurring_entries.len() && app.selected_recurring > 0 {
+                    app.selected_recurring -= 1;
+                }
+            }
         }
 
         _ => {}

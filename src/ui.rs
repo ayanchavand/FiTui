@@ -6,7 +6,7 @@ use ratatui::{
 use crate::{
     app::{App, Mode, PopupKind},
     form::Field,
-    models::{Transaction, TransactionType},
+    models::{Transaction, TransactionType, RecurringInterval},
     stats,
     stats::StatsSnapshot,
     theme::Theme,
@@ -44,6 +44,10 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
                 &theme,
             );
             draw_popup(f, app, &theme);
+        }
+
+        Mode::RecurringManagement => {
+            draw_recurring_management(f, app, &theme);
         }
 
         _ => {
@@ -275,7 +279,7 @@ fn draw_transactions_list(
         .constraints([Constraint::Min(1), Constraint::Length(3)])
         .split(area);
 
-    let items = build_transaction_items(transactions, theme, &app.currency);
+    let items = build_transaction_items(transactions, &app.recurring_entries, theme, &app.currency);
     let mut state = create_list_state(app.selected);
 
     let list = List::new(items)
@@ -355,6 +359,7 @@ fn draw_transaction_form(f: &mut Frame, app: &App, theme: &Theme) {
 */
 fn build_transaction_items(
     transactions: &[Transaction],
+    recurring_entries: &[crate::models::RecurringEntry],
     theme: &Theme,
     currency: &str,
 ) -> Vec<ListItem<'static>> {
@@ -386,7 +391,7 @@ fn build_transaction_items(
         ])));
     } else {
         for tx in transactions {
-            items.push(create_transaction_row(tx, theme, currency));
+            items.push(create_transaction_row(tx, recurring_entries, theme, currency));
         }
     }
     items
@@ -435,12 +440,26 @@ fn create_divider(theme: &Theme) -> ListItem<'static> {
     ))
 }
 
-fn create_transaction_row(tx: &Transaction, theme: &Theme, currency: &str) -> ListItem<'static> {
+fn create_transaction_row(tx: &Transaction, recurring_entries: &[crate::models::RecurringEntry], theme: &Theme, currency: &str) -> ListItem<'static> {
     let color = theme.transaction_color(tx.kind);
     let (icon, kind_label) = match tx.kind {
         TransactionType::Credit => ("↑", "Credit"),
         TransactionType::Debit => ("↓", "Debit"),
     };
+    
+    // Check if this transaction is recurring
+    let recurring_indicator = recurring_entries
+        .iter()
+        .find(|r| r.source == tx.source && r.amount == tx.amount && r.kind == tx.kind && r.tag == tx.tag && r.active)
+        .map(|r| {
+            let interval_icon = match r.interval {
+                RecurringInterval::Daily => "📅",
+                RecurringInterval::Weekly => "📆",
+                RecurringInterval::Monthly => "📅",
+            };
+            format!(" {}", interval_icon)
+        })
+        .unwrap_or_default();
     
     let line = Line::from(vec![
         Span::raw(" "),
@@ -474,6 +493,10 @@ fn create_transaction_row(tx: &Transaction, theme: &Theme, currency: &str) -> Li
             Style::default()
                 .fg(theme.accent_soft)
                 .add_modifier(Modifier::ITALIC | Modifier::BOLD),
+        ),
+        Span::styled(
+            recurring_indicator,
+            Style::default().fg(theme.accent),
         ),
     ]);
     ListItem::new(line)
@@ -548,6 +571,8 @@ fn build_form_content(app: &App, theme: &Theme) -> Vec<Line<'static>> {
         create_tag_selector(&app.tags, form.tag_index, form.active == Field::Tag, theme),
         Line::raw(""),
         create_recurring_selector(form.recurring, form.active == Field::Recurring, theme),
+        Line::raw(""),
+        create_recurring_interval_selector(&form.recurring_interval, form.active == Field::RecurringInterval, form.recurring, theme),
         Line::raw(""),
         Line::styled(
             "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -748,6 +773,46 @@ fn create_recurring_selector(recurring: bool, is_active: bool, theme: &Theme) ->
     ])
 }
 
+fn create_recurring_interval_selector(interval: &RecurringInterval, is_active: bool, is_recurring: bool, theme: &Theme) -> Line<'static> {
+    let label_style = if is_active {
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+    } else {
+        theme.muted_text()
+    };
+    
+    let indicator = if is_active {
+        Span::styled("▶ ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+    } else {
+        Span::raw("  ")
+    };
+    
+    let interval_style = if is_recurring {
+        Style::default().fg(theme.accent)
+    } else {
+        Style::default().fg(theme.muted)
+    };
+    
+    let interval_text = interval.display().to_string();
+    
+    Line::from(vec![
+        indicator,
+        Span::styled("Interval", label_style),
+        Span::styled("│ ", Style::default().fg(theme.subtle)),
+        Span::styled(interval_text, interval_style),
+        Span::raw("  "),
+        Span::styled(
+            "← →",
+            if is_active {
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.muted)
+            }
+        ),
+    ])
+}
+
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
     let vertical_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -767,3 +832,111 @@ fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
         ])
         .split(vertical_layout[1])[1]
 }
+
+fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
+    let area = f.size();
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(3),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+    // Header
+    let header = Paragraph::new(Line::from(vec![
+        Span::styled(" 📅 Recurring Entries ", 
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+    ]))
+    .block(theme.block(" "))
+    .alignment(Alignment::Left);
+    
+    f.render_widget(header, layout[0]);
+
+    // Recurring entries list
+    if app.recurring_entries.is_empty() {
+        let empty = Paragraph::new("No recurring entries yet. Press 'a' to create one!")
+            .style(Style::default().fg(theme.muted));
+        f.render_widget(empty, layout[1]);
+    } else {
+        let items: Vec<ListItem> = app.recurring_entries
+            .iter()
+            .enumerate()
+            .map(|(idx, entry)| {
+                let is_selected = idx == app.selected_recurring;
+                let status = if entry.active { "✓" } else { "✗" };
+                let status_style = if entry.active { 
+                    theme.success() 
+                } else { 
+                    Style::default().fg(theme.muted) 
+                };
+                
+                let line = Line::from(vec![
+                    Span::raw(" "),
+                    Span::styled(status, status_style),
+                    Span::raw(" "),
+                    Span::styled(
+                        format!("{:<20}", truncate_string(&entry.source, 20)),
+                        Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD)
+                    ),
+                    Span::styled(" │ ", Style::default().fg(theme.subtle)),
+                    Span::styled(
+                        format!("{:>10}", entry.amount),
+                        Style::default().fg(theme.accent)
+                    ),
+                    Span::styled(" │ ", Style::default().fg(theme.subtle)),
+                    Span::styled(
+                        format!("{:<8}", entry.interval.display()),
+                        Style::default().fg(theme.accent_soft).add_modifier(Modifier::ITALIC)
+                    ),
+                ]);
+                
+                if is_selected {
+                    ListItem::new(line).style(theme.highlight_style())
+                } else {
+                    ListItem::new(line)
+                }
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(theme.block(" 🔄 List "))
+            .highlight_symbol("▶ ")
+            .style(Style::default().fg(theme.foreground));
+
+        let mut state = ListState::default();
+        state.select(Some(app.selected_recurring));
+        f.render_stateful_widget(list, layout[1], &mut state);
+    }
+
+    // Footer
+    let footer = Paragraph::new(Line::from(vec![
+        Span::styled("  [", theme.muted_text()),
+        Span::styled("↑↓", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled("] Navigate  ", theme.muted_text()),
+        
+        Span::styled("[", theme.muted_text()),
+        Span::styled("Space", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled("] Toggle  ", theme.muted_text()),
+        
+        Span::styled("[", theme.muted_text()),
+        Span::styled("d", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
+        Span::styled("] Delete  ", theme.muted_text()),
+        
+        Span::styled("[", theme.muted_text()),
+        Span::styled("Esc", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled("] Back", theme.muted_text()),
+    ]))
+    .block(
+        Block::default()
+            .borders(ratatui::widgets::Borders::TOP)
+            .border_style(Style::default().fg(theme.subtle))
+            .style(Style::default().bg(theme.background))
+    )
+    .alignment(Alignment::Left);
+
+    f.render_widget(footer, layout[2]);
+}
+

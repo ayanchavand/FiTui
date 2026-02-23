@@ -1,4 +1,4 @@
-use crate::models::TransactionType;
+use crate::models::{TransactionType, RecurringInterval};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum Field {
@@ -8,6 +8,7 @@ pub enum Field {
     Tag,
     Date,
     Recurring,
+    RecurringInterval,
 }
 
 impl Field {
@@ -19,7 +20,8 @@ impl Field {
             Kind => Tag,
             Tag => Date,
             Date => Recurring,
-            Recurring => Source,
+            Recurring => RecurringInterval,
+            RecurringInterval => Source,
         }
     }
 }
@@ -34,6 +36,7 @@ pub struct TransactionForm {
 
     pub date: String,
     pub recurring: bool,
+    pub recurring_interval: RecurringInterval,
     pub active: Field,
 }
 
@@ -46,6 +49,7 @@ impl TransactionForm {
             tag_index: 0,
             date: chrono::Local::now().format("%Y-%m-%d").to_string(),
             recurring: false,
+            recurring_interval: RecurringInterval::Monthly,
             active: Field::Source,
         }
     }
@@ -87,6 +91,14 @@ impl TransactionForm {
 
     pub fn toggle_recurring(&mut self) {
         self.recurring = !self.recurring;
+    }
+
+    pub fn next_interval(&mut self) {
+        self.recurring_interval = self.recurring_interval.next();
+    }
+
+    pub fn prev_interval(&mut self) {
+        self.recurring_interval = self.recurring_interval.prev();
     }
 
     pub fn next_tag(&mut self, total_tags: usize) {

@@ -14,6 +14,7 @@ pub enum Mode {
     Adding,
     Stats,
     Popup, // 👈 generic popup mode
+    RecurringManagement,
 }
 
 /// Actions a popup can trigger
@@ -50,6 +51,7 @@ pub struct App {
     pub transactions: Vec<Transaction>,
     pub recurring_entries: Vec<RecurringEntry>,
     pub selected: usize,
+    pub selected_recurring: usize, // For recurring entries management screen
 
     pub currency: String,
 
@@ -78,6 +80,7 @@ impl App {
             transactions,
             recurring_entries,
             selected: 0,
+            selected_recurring: 0,
             currency: config.currency,
 
             popup: None, // 👈 init popup
@@ -137,6 +140,8 @@ impl App {
                     amount,
                     self.form.kind,
                     &tag,
+                    &self.form.recurring_interval,
+                    &self.form.date,
                 )
                 .unwrap();
             }
@@ -166,6 +171,16 @@ impl App {
 
         self.form.date = tx.date.clone();
         self.form.active = crate::form::Field::Source;
+
+        // Check if this transaction is also a recurring entry
+        let recurring_entry = self.recurring_entries.iter().find(|r| r.source == tx.source && r.amount == tx.amount && r.kind == tx.kind && r.tag == tx.tag);
+        if let Some(entry) = recurring_entry {
+            self.form.recurring = true;
+            self.form.recurring_interval = entry.interval.clone();
+        } else {
+            self.form.recurring = false;
+            self.form.recurring_interval = crate::models::RecurringInterval::Monthly;
+        }
 
         self.mode = Mode::Adding;
         self.editing = Some(tx.id);
