@@ -2,7 +2,9 @@
 name = "FiTui"
 version = "0.2.0"
 edition = "2024"
-
+description = "Terminal-based personal finance manager"
+license = "MIT"
+repository = "https://github.com/ayanchavand/FiTui"
 [dependencies]
 rusqlite = { version = "0.31", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
