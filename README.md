@@ -1,6 +1,8 @@
 # FiTui
 
 [![Built With Ratatui](https://ratatui.rs/built-with-ratatui/badge.svg)](https://ratatui.rs/)
+![Crates.io Version](https://img.shields.io/crates/v/FiTui?style=for-the-badge)
+
 
 A lightweight terminal-based personal finance tracker built in Rust. Record transactions, track spending, and view financial insights, all from your terminal.
 
