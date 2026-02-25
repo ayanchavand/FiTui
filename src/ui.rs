@@ -131,47 +131,66 @@ fn draw_transactions_list(
         ]));
         f.render_widget(empty, layout[0]);
     } else {
+        // header with vertical separators
         let header = Row::new(vec![
             Cell::from(Span::styled(
                 "Date",
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
             )),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Source",
                 Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
             )),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Amount",
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
             )),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Type",
                 Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
             )),
+            sep_cell(theme),
+            Cell::from(Span::styled(
+                "Rec",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Tag",
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
             )),
-        ]);
+        ])
+        .style(Style::default().bg(theme.accent_soft));
 
-        let rows: Vec<Row> = transactions
-            .iter()
-            .map(|tx| transaction_row(tx, app, theme, &app.currency))
-            .collect();
+        // build rows (horizontal separators removed)
+        let mut rows_with_sep: Vec<Row> = Vec::new();
+        for tx in transactions {
+            rows_with_sep.push(transaction_row(tx, app, theme, &app.currency));
+        }
 
         let mut state = create_table_state(app.selected);
 
-        // Use ratios so columns expand/shrink evenly with terminal width
-        let table = Table::new(rows, &[
-                Constraint::Ratio(1, 5), // date
-                Constraint::Ratio(1, 5), // source
-                Constraint::Ratio(1, 5), // amount
-                Constraint::Ratio(1, 5), // type
-                Constraint::Ratio(1, 5), // tag
+        // columns now include Rec indicator plus separator columns
+        let table = Table::new(rows_with_sep, &[
+                Constraint::Ratio(1, 12), // date
+                Constraint::Length(1),     // sep
+                Constraint::Ratio(1, 12), // source
+                Constraint::Length(1),
+                Constraint::Ratio(1, 12), // amount
+                Constraint::Length(1),
+                Constraint::Ratio(1, 12), // type
+                Constraint::Length(1),
+                Constraint::Ratio(1, 12), // rec
+                Constraint::Length(1),
+                Constraint::Ratio(1, 12), // tag
             ])
             .header(header)
             .block(theme.block("Transactions "))
             .column_spacing(1)
+            .style(Style::default().bg(theme.background))
             .highlight_style(theme.highlight_style())
             .highlight_symbol("▶ ");
 
@@ -236,7 +255,7 @@ fn transaction_row(tx: &Transaction, app: &App, theme: &Theme, currency: &str) -
                 RecurringInterval::Weekly => "📆",
                 RecurringInterval::Monthly => "📅",
             };
-            format!(" {}", interval_icon)
+            interval_icon.to_string()
         })
         .unwrap_or_default();
 
@@ -245,20 +264,30 @@ fn transaction_row(tx: &Transaction, app: &App, theme: &Theme, currency: &str) -
             format!("{:<11}", tx.date),
             Style::default().fg(theme.muted),
         )),
+        sep_cell(theme),
         Cell::from(Span::styled(
             format!("{:<15}", truncate_string(&tx.source, 15)),
             Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD),
         )),
+        sep_cell(theme),
         Cell::from(Span::styled(
             format!("{}{:>9.2}", currency, tx.amount),
             Style::default().fg(color).add_modifier(Modifier::BOLD),
         )),
+        sep_cell(theme),
         Cell::from(Span::styled(
             icon,
             Style::default().fg(color).add_modifier(Modifier::BOLD),
         )),
+        sep_cell(theme),
+        // new recurring column
         Cell::from(Span::styled(
-            format!("#{}{}", tx.tag.as_str(), recurring_indicator),
+            format!("{}", recurring_indicator),
+            Style::default().fg(theme.accent),
+        )),
+        sep_cell(theme),
+        Cell::from(Span::styled(
+            format!("#{}", tx.tag.as_str()),
             Style::default()
                 .fg(theme.accent_soft)
                 .add_modifier(Modifier::ITALIC | Modifier::BOLD),
@@ -276,14 +305,17 @@ fn recurring_row(entry: &crate::models::RecurringEntry, theme: &Theme) -> Row<'s
 
     Row::new(vec![
         Cell::from(Span::styled(status, status_style)),
+        sep_cell(theme),
         Cell::from(Span::styled(
             format!("{:<20}", truncate_string(&entry.source, 20)),
             Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD),
         )),
+        sep_cell(theme),
         Cell::from(Span::styled(
             format!("{:>10}", entry.amount),
             Style::default().fg(theme.accent),
         )),
+        sep_cell(theme),
         Cell::from(Span::styled(
             format!("{:<8}", entry.interval.display()),
             Style::default()
@@ -291,6 +323,14 @@ fn recurring_row(entry: &crate::models::RecurringEntry, theme: &Theme) -> Row<'s
                 .add_modifier(Modifier::ITALIC),
         )),
     ])
+}
+
+fn sep_cell(theme: &Theme) -> Cell<'static> {
+    // vertical separator cell used between columns
+    Cell::from(Span::styled(
+        "│",
+        Style::default().fg(theme.subtle),
+    ))
 }
 
 fn truncate_string(s: &str, max_len: usize) -> String {
@@ -338,38 +378,46 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
     } else {
         let header = Row::new(vec![
             Cell::from(""),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Source",
                 Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
             )),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Amount",
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
             )),
+            sep_cell(theme),
             Cell::from(Span::styled(
                 "Interval",
                 Style::default().fg(theme.accent_soft).add_modifier(Modifier::BOLD),
             )),
-        ]);
+        ])
+        .style(Style::default().bg(theme.accent_soft));
 
-        let rows: Vec<Row> = app
-            .recurring_entries
-            .iter()
-            .map(|entry| recurring_row(entry, theme))
-            .collect();
+        // build rows for recurring entries without horizontal separators
+        let mut rows_with_sep: Vec<Row> = Vec::new();
+        for entry in &app.recurring_entries {
+            rows_with_sep.push(recurring_row(entry, theme));
+        }
 
         let mut state = create_table_state(app.selected_recurring);
 
-        // evenly distribute columns
-        let table = Table::new(rows, &[
-                Constraint::Ratio(1, 4),
-                Constraint::Ratio(1, 4),
-                Constraint::Ratio(1, 4),
-                Constraint::Ratio(1, 4),
+        // evenly distribute columns + separators
+        let table = Table::new(rows_with_sep, &[
+                Constraint::Ratio(1, 8), // status
+                Constraint::Length(1),
+                Constraint::Ratio(1, 8), // source
+                Constraint::Length(1),
+                Constraint::Ratio(1, 8), // amount
+                Constraint::Length(1),
+                Constraint::Ratio(1, 8), // interval
             ])
             .header(header)
             .block(theme.block(" 🔄 List "))
             .column_spacing(1)
+            .style(Style::default().bg(theme.background))
             .highlight_style(theme.highlight_style())
             .highlight_symbol("▶ ");
 
@@ -453,8 +501,11 @@ mod tests {
 
         let row = transaction_row(&tx, &app, &theme, &app.currency);
         // Basic content checks (string conversion may include styling)
-        assert!(format!("{:?}", row).contains("Test"));
-        assert!(format!("{:?}", row).contains("12.34"));
+        let debug = format!("{:?}", row);
+        assert!(debug.contains("Test"));
+        assert!(debug.contains("12.34"));
+        // should include vertical separators
+        assert!(debug.contains('│'));
     }
 
     #[test]
@@ -473,7 +524,10 @@ mod tests {
         };
 
         let row = recurring_row(&entry, &theme);
-        assert!(format!("{:?}", row).contains("Foo"));
+        let debug = format!("{:?}", row);
+        assert!(debug.contains("Foo"));
+        assert!(debug.contains("99"));
+        assert!(debug.contains('│')); // vertical separator should appear
     }
 }
 
