@@ -1,6 +1,6 @@
 use ratatui::{
     prelude::*,
-    widgets::{Block, List, ListItem, ListState, Padding, Paragraph},
+    widgets::{Block, Table, Row, Cell, TableState, Padding, Paragraph},
 };
 
 use crate::{
@@ -113,15 +113,68 @@ fn draw_transactions_list(
         .constraints([Constraint::Min(1), Constraint::Length(3)])
         .split(area);
 
-    let items = build_transaction_items(transactions, app, theme, &app.currency);
-    let mut state = create_list_state(app.selected);
+    if transactions.is_empty() {
+        let empty = Paragraph::new(Line::from(vec![
+            Span::raw("   "),
+            Span::styled(
+                "No transactions yet. Press ",
+                Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC),
+            ),
+            Span::styled(
+                "'a'",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                " to add one",
+                Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC),
+            ),
+        ]));
+        f.render_widget(empty, layout[0]);
+    } else {
+        let header = Row::new(vec![
+            Cell::from(Span::styled(
+                "Date",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Source",
+                Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Amount",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Type",
+                Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Tag",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )),
+        ]);
 
-    let list = List::new(items)
-        .block(theme.block("Transactions "))
-        .highlight_style(theme.highlight_style())
-        .highlight_symbol("▶ ");
+        let rows: Vec<Row> = transactions
+            .iter()
+            .map(|tx| transaction_row(tx, app, theme, &app.currency))
+            .collect();
 
-    f.render_stateful_widget(list, layout[0], &mut state);
+        let mut state = create_table_state(app.selected);
+
+        let table = Table::new(rows, &[
+                Constraint::Length(12),
+                Constraint::Length(16),
+                Constraint::Length(11),
+                Constraint::Length(8),
+                Constraint::Min(4),
+            ])
+            .header(header)
+            .block(theme.block("Transactions "))
+            .highlight_style(theme.highlight_style())
+            .highlight_symbol("▶ ");
+
+        f.render_stateful_widget(table, layout[0], &mut state);
+    }
 
     // Enhanced footer with better visual grouping
     let footer_block = Block::default()
@@ -164,97 +217,17 @@ fn draw_transactions_list(
     f.render_widget(footer, layout[1]);
 }
 
-fn build_transaction_items(
-    transactions: &[Transaction],
-    app: &App,
-    theme: &Theme,
-    currency: &str,
-) -> Vec<ListItem<'static>> {
-    let mut items = Vec::new();
-    items.push(create_table_header(theme));
-    items.push(create_divider(theme));
-    if transactions.is_empty() {
-        items.push(ListItem::new(Line::from(vec![
-            Span::raw("   "),
-            Span::styled(
-                "No transactions yet. Press ",
-                Style::default()
-                    .fg(theme.muted)
-                    .add_modifier(Modifier::ITALIC)
-            ),
-            Span::styled(
-                "'a'",
-                Style::default()
-                    .fg(theme.accent)
-                    .add_modifier(Modifier::BOLD)
-            ),
-            Span::styled(
-                " to add one",
-                Style::default()
-                    .fg(theme.muted)
-                    .add_modifier(Modifier::ITALIC)
-            ),
-        ])));
-    } else {
-        for tx in transactions {
-            items.push(create_transaction_row(tx, app, theme, currency));
-        }
-    }
-    items
-}
+// Helpers for the new table-based UI
 
-fn create_table_header(theme: &Theme) -> ListItem<'static> {
-    ListItem::new(Line::from(vec![
-        Span::raw("   "),
-        Span::styled(
-            "Date ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            "│ Source ",
-            Style::default()
-                .fg(theme.subtle)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            "│ Amount ",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            "│ Type ",
-            Style::default()
-                .fg(theme.subtle)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            "│ Tag",
-            Style::default()
-                .fg(theme.accent)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]))
-}
-
-fn create_divider(theme: &Theme) -> ListItem<'static> {
-    ListItem::new(Line::styled(
-        " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        Style::default().fg(theme.subtle),
-    ))
-}
-
-fn create_transaction_row(tx: &Transaction, app: &App, theme: &Theme, currency: &str) -> ListItem<'static> {
+fn transaction_row(tx: &Transaction, app: &App, theme: &Theme, currency: &str) -> Row<'static> {
     let color = theme.transaction_color(tx.kind);
-    let (icon, kind_label) = match tx.kind {
+    let (icon, _kind_label) = match tx.kind {
         TransactionType::Credit => ("↑", "Credit"),
         TransactionType::Debit => ("↓", "Debit"),
     };
-    
-    // Check if this transaction is recurring using the app helper method
-    let recurring_indicator = app.get_recurring_for_transaction(tx)
+
+    let recurring_indicator = app
+        .get_recurring_for_transaction(tx)
         .map(|r| {
             let interval_icon = match r.interval {
                 RecurringInterval::Daily => "📅",
@@ -264,46 +237,58 @@ fn create_transaction_row(tx: &Transaction, app: &App, theme: &Theme, currency: 
             format!(" {}", interval_icon)
         })
         .unwrap_or_default();
-    
-    let line = Line::from(vec![
-        Span::raw(" "),
-        Span::styled(
+
+    Row::new(vec![
+        Cell::from(Span::styled(
             format!("{:<11}", tx.date),
-            Style::default().fg(theme.muted)
-        ),
-        Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(
+            Style::default().fg(theme.muted),
+        )),
+        Cell::from(Span::styled(
             format!("{:<15}", truncate_string(&tx.source, 15)),
             Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(
+        )),
+        Cell::from(Span::styled(
             format!("{}{:>9.2}", currency, tx.amount),
             Style::default().fg(color).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(
+        )),
+        Cell::from(Span::styled(
             icon,
             Style::default().fg(color).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(" "),
-        Span::styled(
-            format!("{:<7}", kind_label),
-            Style::default().fg(color)
-        ),
-        Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(
-            format!("#{}", tx.tag.as_str()),
+        )),
+        Cell::from(Span::styled(
+            format!("#{}{}", tx.tag.as_str(), recurring_indicator),
             Style::default()
                 .fg(theme.accent_soft)
                 .add_modifier(Modifier::ITALIC | Modifier::BOLD),
-        ),
-        Span::styled(
-            recurring_indicator,
+        )),
+    ])
+}
+
+fn recurring_row(entry: &crate::models::RecurringEntry, theme: &Theme) -> Row<'static> {
+    let status = if entry.active { "✓" } else { "✗" };
+    let status_style = if entry.active {
+        theme.success()
+    } else {
+        Style::default().fg(theme.muted)
+    };
+
+    Row::new(vec![
+        Cell::from(Span::styled(status, status_style)),
+        Cell::from(Span::styled(
+            format!("{:<20}", truncate_string(&entry.source, 20)),
+            Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            format!("{:>10}", entry.amount),
             Style::default().fg(theme.accent),
-        ),
-    ]);
-    ListItem::new(line)
+        )),
+        Cell::from(Span::styled(
+            format!("{:<8}", entry.interval.display()),
+            Style::default()
+                .fg(theme.accent_soft)
+                .add_modifier(Modifier::ITALIC),
+        )),
+    ])
 }
 
 fn truncate_string(s: &str, max_len: usize) -> String {
@@ -314,9 +299,9 @@ fn truncate_string(s: &str, max_len: usize) -> String {
     }
 }
 
-fn create_list_state(selected: usize) -> ListState {
-    let mut state = ListState::default();
-    state.select(Some(selected + 2));
+fn create_table_state(selected: usize) -> TableState {
+    let mut state = TableState::default();
+    state.select(Some(selected));
     state
 }
 
@@ -334,68 +319,57 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
 
     // Header
     let header = Paragraph::new(Line::from(vec![
-        Span::styled(" Recurring Entries ", 
-            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+        Span::styled(
+            " Recurring Entries ",
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        )
     ]))
     .block(theme.block(" "))
     .alignment(Alignment::Left);
-    
+
     f.render_widget(header, layout[0]);
 
-    // Recurring entries list
     if app.recurring_entries.is_empty() {
         let empty = Paragraph::new("No recurring entries yet.")
             .style(Style::default().fg(theme.muted));
         f.render_widget(empty, layout[1]);
     } else {
-        let items: Vec<ListItem> = app.recurring_entries
+        let header = Row::new(vec![
+            Cell::from(""),
+            Cell::from(Span::styled(
+                "Source",
+                Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Amount",
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Interval",
+                Style::default().fg(theme.accent_soft).add_modifier(Modifier::BOLD),
+            )),
+        ]);
+
+        let rows: Vec<Row> = app
+            .recurring_entries
             .iter()
-            .enumerate()
-            .map(|(idx, entry)| {
-                let is_selected = idx == app.selected_recurring;
-                let status = if entry.active { "✓" } else { "✗" };
-                let status_style = if entry.active { 
-                    theme.success() 
-                } else { 
-                    Style::default().fg(theme.muted) 
-                };
-                
-                let line = Line::from(vec![
-                    Span::raw(" "),
-                    Span::styled(status, status_style),
-                    Span::raw(" "),
-                    Span::styled(
-                        format!("{:<20}", truncate_string(&entry.source, 20)),
-                        Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD)
-                    ),
-                    Span::styled(" │ ", Style::default().fg(theme.subtle)),
-                    Span::styled(
-                        format!("{:>10}", entry.amount),
-                        Style::default().fg(theme.accent)
-                    ),
-                    Span::styled(" │ ", Style::default().fg(theme.subtle)),
-                    Span::styled(
-                        format!("{:<8}", entry.interval.display()),
-                        Style::default().fg(theme.accent_soft).add_modifier(Modifier::ITALIC)
-                    ),
-                ]);
-                
-                if is_selected {
-                    ListItem::new(line).style(theme.highlight_style())
-                } else {
-                    ListItem::new(line)
-                }
-            })
+            .map(|entry| recurring_row(entry, theme))
             .collect();
 
-        let list = List::new(items)
-            .block(theme.block(" 🔄 List "))
-            .highlight_symbol("▶ ")
-            .style(Style::default().fg(theme.foreground));
+        let mut state = create_table_state(app.selected_recurring);
 
-        let mut state = ListState::default();
-        state.select(Some(app.selected_recurring));
-        f.render_stateful_widget(list, layout[1], &mut state);
+        let table = Table::new(rows, &[
+                Constraint::Length(2),
+                Constraint::Length(22),
+                Constraint::Length(11),
+                Constraint::Length(8),
+            ])
+            .header(header)
+            .block(theme.block(" 🔄 List "))
+            .highlight_style(theme.highlight_style())
+            .highlight_symbol("▶ ");
+
+        f.render_stateful_widget(table, layout[1], &mut state);
     }
 
     // Footer
@@ -425,5 +399,77 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
     .alignment(Alignment::Left);
 
     f.render_widget(footer, layout[2]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Transaction, TransactionType, Tag, RecurringEntry, RecurringInterval};
+
+    #[test]
+    fn truncate_string_short() {
+        assert_eq!(truncate_string("abc", 5), "abc");
+    }
+
+    #[test]
+    fn truncate_string_long() {
+        assert_eq!(truncate_string("abcdef", 5), "abcd…");
+    }
+
+    #[test]
+    fn table_state_selection() {
+        let state = create_table_state(3);
+        assert_eq!(state.selected(), Some(3));
+    }
+
+    #[test]
+    fn transaction_row_format() {
+        let theme = Theme::default();
+        let mut app = App {
+            mode: Mode::Normal,
+            form: crate::form::TransactionForm::new(),
+            editing: None,
+            tags: vec![],
+            transactions: vec![],
+            recurring_entries: vec![],
+            selected: 0,
+            selected_recurring: 0,
+            currency: "$".into(),
+            popup: None,
+        };
+
+        let tx = Transaction {
+            id: 1,
+            source: "Test".into(),
+            amount: 12.34,
+            kind: TransactionType::Credit,
+            tag: Tag("tag".into()),
+            date: "2026-02-25".into(),
+        };
+
+        let row = transaction_row(&tx, &app, &theme, &app.currency);
+        // Basic content checks (string conversion may include styling)
+        assert!(format!("{:?}", row).contains("Test"));
+        assert!(format!("{:?}", row).contains("12.34"));
+    }
+
+    #[test]
+    fn recurring_row_format() {
+        let theme = Theme::default();
+        let entry = RecurringEntry {
+            id: 1,
+            source: "Foo".into(),
+            amount: 99.0,
+            kind: TransactionType::Debit,
+            tag: Tag("t".into()),
+            interval: RecurringInterval::Weekly,
+            original_date: "2026-02-01".into(),
+            last_inserted_date: "".into(),
+            active: true,
+        };
+
+        let row = recurring_row(&entry, &theme);
+        assert!(format!("{:?}", row).contains("Foo"));
+    }
 }
 
