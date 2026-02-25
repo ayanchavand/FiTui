@@ -11,6 +11,8 @@ use crate::{
     theme::Theme,
 };
 
+// list of tab titles; order must align with `App::current_tab` mapping
+const TAB_TITLES: [&str; 3] = ["Transactions", "Stats", "Recurring"];
 mod form;
 use form::draw_transaction_form;
 
@@ -30,17 +32,42 @@ const HEADER_PANEL_WIDTH_CENTER: u16 = 34;
 const POPUP_WIDTH_PERCENT: u16 = 60;
 const POPUP_HEIGHT_PERCENT: u16 = 30;
 
+/// draw the tab bar at the top of the screen
+fn draw_tabs(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
+    let titles: Vec<Span> = TAB_TITLES
+        .iter()
+        .map(|t| Span::styled(*t, Style::default().fg(theme.accent)))
+        .collect();
+
+    let tabs = ratatui::widgets::Tabs::new(titles)
+        .block(theme.block(""))
+        .highlight_style(theme.highlight_style())
+        .select(app.current_tab());
+
+    f.render_widget(tabs, area);
+}
+
 pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
     let theme = Theme::default();
 
+    // allocate a small strip at top for tabs, remainder for view-specific content
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(1)])
+        .split(f.size());
+
+    draw_tabs(f, chunks[0], app, &theme);
+    let content_area = chunks[1];
+
     match app.mode {
         Mode::Stats => {
-            stats::draw_stats_view(f, snapshot, &theme, &app.currency);
+            stats::draw_stats_view(f, content_area, snapshot, &theme, &app.currency);
         }
 
         Mode::Adding => {
             draw_main_view(
                 f,
+                content_area,
                 &app.transactions,
                 snapshot.earned,
                 snapshot.spent,
@@ -54,6 +81,7 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
         Mode::Popup => {
             draw_main_view(
                 f,
+                content_area,
                 &app.transactions,
                 snapshot.earned,
                 snapshot.spent,
@@ -65,12 +93,13 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
         }
 
         Mode::RecurringManagement => {
-            draw_recurring_management(f, app, &theme);
+            draw_recurring_management(f, content_area, app, &theme);
         }
 
         _ => {
             draw_main_view(
                 f,
+                content_area,
                 &app.transactions,
                 snapshot.earned,
                 snapshot.spent,
@@ -84,6 +113,7 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
 
 fn draw_main_view(
     f: &mut Frame,
+    area: Rect,
     transactions: &[Transaction],
     earned: f64,
     spent: f64,
@@ -95,7 +125,7 @@ fn draw_main_view(
         .direction(Direction::Vertical)
         .margin(0)
         .constraints([Constraint::Length(7), Constraint::Min(1)])
-        .split(f.size());
+        .split(area);
 
     draw_header(f, chunks[0], earned, spent, balance, theme, &app.currency);
     draw_transactions_list(f, chunks[1], transactions, app, theme);
@@ -210,12 +240,8 @@ fn draw_transactions_list(
         Span::styled("] Navigate  ", theme.muted_text()),
         
         Span::styled("[", theme.muted_text()),
-        Span::styled("a", Style::default().fg(theme.credit).add_modifier(Modifier::BOLD)),
-        Span::styled("] Add  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("e", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Edit  ", theme.muted_text()),
+        Span::styled("Tab/←→", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled("] Switch view  ", theme.muted_text()),
 
         Span::styled("[", theme.muted_text()),
         Span::styled("v", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
@@ -347,9 +373,7 @@ fn create_table_state(selected: usize) -> TableState {
     state
 }
 
-fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
-    let area = f.size();
-
+fn draw_recurring_management(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -440,7 +464,10 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
         
         Span::styled("[", theme.muted_text()),
         Span::styled("Esc", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Back", theme.muted_text()),
+        Span::styled("] Back  ", theme.muted_text()),
+        Span::styled("[", theme.muted_text()),
+        Span::styled("Tab/←→", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+        Span::styled("] Switch view", theme.muted_text()),
     ]))
     .block(
         Block::default()
@@ -506,6 +533,29 @@ mod tests {
         assert!(debug.contains("12.34"));
         // should include vertical separators
         assert!(debug.contains('│'));
+    }
+
+    #[test]
+    fn tabs_constant_and_selection() {
+        // ensure we kept three titles and selection reflects app state
+        assert_eq!(TAB_TITLES.len(), 3);
+        let mut app = App {
+            mode: Mode::Normal,
+            form: crate::form::TransactionForm::new(),
+            editing: None,
+            tags: vec![],
+            transactions: vec![],
+            recurring_entries: vec![],
+            selected: 0,
+            selected_recurring: 0,
+            currency: "$".into(),
+            popup: None,
+        };
+        assert_eq!(app.current_tab(), 0);
+        app.mode = Mode::Stats;
+        assert_eq!(app.current_tab(), 1);
+        app.mode = Mode::RecurringManagement;
+        assert_eq!(app.current_tab(), 2);
     }
 
     #[test]
