@@ -32,17 +32,30 @@ const HEADER_PANEL_WIDTH_CENTER: u16 = 34;
 const POPUP_WIDTH_PERCENT: u16 = 60;
 const POPUP_HEIGHT_PERCENT: u16 = 30;
 
-/// draw the tab bar at the top of the screen
 fn draw_tabs(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
-    let titles: Vec<Span> = TAB_TITLES
+    let titles: Vec<Line> = TAB_TITLES
         .iter()
-        .map(|t| Span::styled(*t, Style::default().fg(theme.accent)))
+        .map(|t| Line::from(Span::styled(
+            format!(" {} ", t),
+            Style::default().fg(theme.foreground),
+        )))
         .collect();
 
     let tabs = ratatui::widgets::Tabs::new(titles)
-        .block(theme.block(""))
-        .highlight_style(theme.highlight_style())
-        .select(app.current_tab());
+        .select(app.current_tab())
+        // no block = no borders
+        .style(
+            Style::default()
+                .bg(theme.surface)   // solid bar color
+                .fg(theme.foreground),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(theme.accent)        // invert background
+                .fg(theme.background)    // invert foreground
+                .add_modifier(Modifier::BOLD),
+        )
+        .divider(Span::raw(" ")); // remove pipe dividers
 
     f.render_widget(tabs, area);
 }
@@ -52,9 +65,12 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
 
     // allocate a small strip at top for tabs, remainder for view-specific content
     let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(1)])
-        .split(f.size());
+    .direction(Direction::Vertical)
+    .constraints([
+        Constraint::Length(1),   // ← was 3
+        Constraint::Min(1),
+    ])
+    .split(f.size());
 
     draw_tabs(f, chunks[0], app, &theme);
     let content_area = chunks[1];
@@ -242,18 +258,14 @@ fn draw_transactions_list(
         Span::styled("[", theme.muted_text()),
         Span::styled("Tab/←→", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
         Span::styled("] Switch view  ", theme.muted_text()),
-
-        Span::styled("[", theme.muted_text()),
-        Span::styled("v", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Manage Recurring  ", theme.muted_text()),
         
         Span::styled("[", theme.muted_text()),
         Span::styled("d", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
         Span::styled("] Delete  ", theme.muted_text()),
-        
+
         Span::styled("[", theme.muted_text()),
-        Span::styled("s", Style::default().fg(theme.accent_soft).add_modifier(Modifier::BOLD)),
-        Span::styled("] Stats  ", theme.muted_text()),
+        Span::styled("e", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
+        Span::styled("] Edit  ", theme.muted_text()),
         
         Span::styled("[", theme.muted_text()),
         Span::styled("q", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
