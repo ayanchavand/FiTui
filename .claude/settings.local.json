@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/dev-personal/FiTui && cargo build 2>&1)",
+      "Bash(head:*)",
+      "Bash(tail:*)"
+    ]
+  }
+}

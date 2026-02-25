@@ -6,7 +6,8 @@ description = "Terminal-based personal finance manager"
 license = "MIT"
 repository = "https://github.com/ayanchavand/FiTui"
 [dependencies]
-rusqlite = { version = "0.31", features = ["bundled"] }
+libsql = { version = "0.6", features = ["remote"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 
@@ -18,4 +19,3 @@ chrono = "0.4"
 [[bin]]
 name = "fitui"
 path = "src/main.rs"
-

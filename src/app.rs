@@ -1,8 +1,6 @@
-use rusqlite::Connection;
-
 use crate::{
     config::load_config,
-    db,
+    db::{self, DbHandle},
     form::TransactionForm,
     models::{RecurringEntry, Tag, Transaction},
 };
@@ -49,7 +47,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(conn: &Connection) -> Self {
+    pub fn new(conn: &DbHandle) -> Self {
         let config = load_config();
 
         let tags: Vec<Tag> = config
@@ -75,7 +73,7 @@ impl App {
         }
     }
 
-    pub fn refresh(&mut self, conn: &Connection) {
+    pub fn refresh(&mut self, conn: &DbHandle) {
         self.transactions = db::get_transactions(conn).unwrap_or_default();
         self.recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
@@ -84,7 +82,7 @@ impl App {
         }
     }
 
-    pub fn save_transaction(&mut self, conn: &Connection) {
+    pub fn save_transaction(&mut self, conn: &DbHandle) {
         let amount: f64 = self.form.amount.trim().parse().unwrap_or(0.0);
 
         let tag = self
@@ -173,7 +171,7 @@ impl App {
         self.editing = Some(tx.id);
     }
 
-    pub fn delete_selected(&mut self, conn: &Connection) {
+    pub fn delete_selected(&mut self, conn: &DbHandle) {
         if self.transactions.is_empty() {
             return;
         }

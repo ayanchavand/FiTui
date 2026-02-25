@@ -1,10 +1,10 @@
 use crossterm::event::KeyCode;
-use rusqlite::Connection;
 
 use crate::app::{App, Mode, PopupAction, PopupKind};
+use crate::db::DbHandle;
 use crate::stats;
 
-pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+pub fn handle_key(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
     match app.mode {
         Mode::Normal => handle_normal(app, key, conn),
         Mode::Adding => handle_form(app, key, conn),
@@ -20,7 +20,7 @@ pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 // ---------------- POPUP MODE ----------------
 //
 
-fn handle_popup(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+fn handle_popup(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
     match key {
         // Confirm action
         KeyCode::Char('y') => {
@@ -57,7 +57,7 @@ fn handle_popup(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 // ---------------- NORMAL MODE ----------------
 //
 
-fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+fn handle_normal(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
     let len = app.transactions.len();
 
     match key {
@@ -121,7 +121,7 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 // ---------------- FORM MODE ----------------
 //
 
-fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+fn handle_form(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
     match key {
         KeyCode::Esc => {
             app.mode = Mode::Normal;
@@ -174,7 +174,7 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 // ---------------- RECURRING MANAGEMENT MODE ----------------
 //
 
-fn handle_recurring_management(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+fn handle_recurring_management(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
     let len = app.recurring_entries.len();
 
     match key {

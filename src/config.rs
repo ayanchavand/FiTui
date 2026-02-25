@@ -2,11 +2,23 @@ use serde::{Deserialize, Serialize};
 use directories::ProjectDirs;
 use std::{fs, path::PathBuf};
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Default, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum DbSource {
+    #[default]
+    Local,
+    Turso,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub tags: Vec<String>,
     #[serde(default = "default_currency")]
     pub currency: String,
+    #[serde(default)]
+    pub db_source: DbSource,
+    pub turso_url: Option<String>,
+    pub turso_token: Option<String>,
 }
 
 fn default_currency() -> String {
@@ -25,6 +37,9 @@ impl Default for Config {
                 "other".into(),
             ],
             currency: default_currency(),
+            db_source: DbSource::default(),
+            turso_url: None,
+            turso_token: None,
         }
     }
 }
@@ -42,7 +57,6 @@ fn config_path() -> PathBuf {
 pub fn load_config() -> Config {
     let path = config_path();
 
-    // Auto-create default config if missing
     if !path.exists() {
         let default = Config::default();
 

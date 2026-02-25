@@ -53,16 +53,22 @@ fn recurring_insertion_simulation() {
 #[test]
 fn recurring_intervals_behavior() {
     let conn = db::init_in_memory().expect("init in-memory");
+    let rt = conn.rt();
+    let raw = conn.conn();
 
     let now = chrono::Local::now();
     let today = now.format("%Y-%m-%d").to_string();
 
-    // Helper to reset last_inserted_date for a recurring entry (simulate time passing)
+    // Helper: reset last_inserted_date for a recurring entry (simulates time passing).
+    // Uses inline SQL with literal values to avoid importing libsql directly.
     let reset_last_inserted = |id: i32, reset_val: &str| {
-        conn.execute(
-            "UPDATE recurring_entries SET last_inserted_date = ?1 WHERE id = ?2",
-            (reset_val, id),
-        ).unwrap();
+        let sql = format!(
+            "UPDATE recurring_entries SET last_inserted_date = '{}' WHERE id = {}",
+            reset_val, id
+        );
+        rt.block_on(async {
+            raw.execute(&sql, ()).await.unwrap();
+        });
     };
 
     // === TEST DAILY ===
@@ -70,18 +76,15 @@ fn recurring_intervals_behavior() {
     let daily_entries = db::get_recurring_entries(&conn).unwrap();
     let daily_id = daily_entries.iter().find(|e| e.source == "daily-item").unwrap().id;
 
-    // First run: should insert
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), 1);
 
-    // Second run same day: should NOT insert (already inserted today)
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), 1, "daily should not insert twice on same day");
 
-    // Simulate next day by resetting last_inserted_date
-    reset_last_inserted(daily_id, ""); // Clear the date as if it's a new day
+    reset_last_inserted(daily_id, "");
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), 2, "daily should insert on new day");
@@ -93,17 +96,14 @@ fn recurring_intervals_behavior() {
     let weekly_entries = db::get_recurring_entries(&conn).unwrap();
     let weekly_id = weekly_entries.iter().find(|e| e.source == "weekly-item").unwrap().id;
 
-    // First run: should insert
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), daily_txs_count + 1, "weekly should insert on matching day");
 
-    // Second run same week: should NOT insert
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), daily_txs_count + 1, "weekly should not insert twice in same week");
 
-    // Simulate next week by resetting (in real app, time would change, but we're testing the state machine)
     reset_last_inserted(weekly_id, "");
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
@@ -116,17 +116,14 @@ fn recurring_intervals_behavior() {
     let monthly_entries = db::get_recurring_entries(&conn).unwrap();
     let monthly_id = monthly_entries.iter().find(|e| e.source == "monthly-item").unwrap().id;
 
-    // First run: should insert
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), weekly_txs_count + 1, "monthly should insert on matching day");
 
-    // Second run same month: should NOT insert
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
     assert_eq!(txs.len(), weekly_txs_count + 1, "monthly should not insert twice in same month");
 
-    // Simulate next month by resetting last_inserted_date
     reset_last_inserted(monthly_id, "");
     db::insert_recurring_transactions(&conn).unwrap();
     let txs = db::get_transactions(&conn).unwrap();
@@ -135,36 +132,69 @@ fn recurring_intervals_behavior() {
 
 #[test]
 fn migration_safety_test() {
-    // Create a raw in-memory connection and craft an old-schema recurring_entries table
-    let conn = rusqlite::Connection::open_in_memory().expect("open in memory");
+    // Create a raw in-memory DB without any schema (simulates an old install).
+    let db = db::init_in_memory_empty().expect("open empty in-memory db");
+    let rt = db.rt();
+    let conn = db.conn();
 
-    conn.execute(
-        "CREATE TABLE recurring_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source TEXT NOT NULL,
-            amount REAL NOT NULL,
-            kind TEXT NOT NULL,
-            tag TEXT NOT NULL,
-            last_inserted_month TEXT NOT NULL DEFAULT ''
-        )",
-        [],
-    ).unwrap();
+    // Create the old recurring_entries table (missing the columns added in later versions).
+    rt.block_on(async {
+        conn.execute(
+            "CREATE TABLE recurring_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT NOT NULL,
+                amount REAL NOT NULL,
+                kind TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                last_inserted_month TEXT NOT NULL DEFAULT ''
+            )",
+            (),
+        )
+        .await
+        .unwrap();
 
-    conn.execute(
-        "INSERT INTO recurring_entries (source, amount, kind, tag, last_inserted_month) VALUES ('x', 10.0, 'debit', 'a', '2026-02')",
-        [],
-    ).unwrap();
+        // Inline literal values so we don't need libsql::params! in this file.
+        conn.execute(
+            "INSERT INTO recurring_entries (source, amount, kind, tag, last_inserted_month) \
+             VALUES ('x', 10.0, 'debit', 'a', '2026-02')",
+            (),
+        )
+        .await
+        .unwrap();
+    });
 
-    // Run migration
-    db::migrate_recurring_entries_schema(&conn).unwrap();
+    // Run migration.
+    db::migrate_recurring_entries_schema(&db).unwrap();
 
-    // After migration, last_inserted_date should exist and be migrated
-    let migrated: String = conn.query_row("SELECT last_inserted_date FROM recurring_entries WHERE id = 1", [], |r| r.get(0)).unwrap();
+    // last_inserted_date should exist and contain the migrated value.
+    let migrated: String = rt.block_on(async {
+        let mut rows = conn
+            .query("SELECT last_inserted_date FROM recurring_entries WHERE id = 1", ())
+            .await
+            .unwrap();
+        rows.next().await.unwrap().unwrap().get(0).unwrap()
+    });
     assert_eq!(migrated, "2026-02");
 
-    // New columns interval, original_date, and active should exist (no error when selecting)
-    let _: String = conn.query_row("SELECT interval FROM recurring_entries WHERE id = 1", [], |r| r.get(0)).unwrap();
-    let _: String = conn.query_row("SELECT original_date FROM recurring_entries WHERE id = 1", [], |r| r.get(0)).unwrap();
-    let active: i32 = conn.query_row("SELECT active FROM recurring_entries WHERE id = 1", [], |r| r.get(0)).unwrap();
-    assert!(active == 0 || active == 1);
+    // New columns interval, original_date, active should exist (SELECT must not error).
+    rt.block_on(async {
+        let mut rows = conn
+            .query("SELECT interval FROM recurring_entries WHERE id = 1", ())
+            .await
+            .unwrap();
+        let _: String = rows.next().await.unwrap().unwrap().get(0).unwrap();
+
+        let mut rows = conn
+            .query("SELECT original_date FROM recurring_entries WHERE id = 1", ())
+            .await
+            .unwrap();
+        let _: String = rows.next().await.unwrap().unwrap().get(0).unwrap();
+
+        let mut rows = conn
+            .query("SELECT active FROM recurring_entries WHERE id = 1", ())
+            .await
+            .unwrap();
+        let active: i32 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+        assert!(active == 0 || active == 1);
+    });
 }

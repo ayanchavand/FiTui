@@ -24,7 +24,8 @@ use ratatui::prelude::*;
 use app::App;
 
 fn main() -> io::Result<()> {
-    let conn = db::init_db().unwrap();
+    let cfg = config::load_config();
+    let conn = db::init_db(&cfg);
 
     // Insert recurring entries based on their intervals
     db::insert_recurring_transactions(&conn).unwrap();
