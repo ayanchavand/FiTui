@@ -161,15 +161,17 @@ fn draw_transactions_list(
 
         let mut state = create_table_state(app.selected);
 
+        // Use ratios so columns expand/shrink evenly with terminal width
         let table = Table::new(rows, &[
-                Constraint::Length(12),
-                Constraint::Length(16),
-                Constraint::Length(11),
-                Constraint::Length(8),
-                Constraint::Min(4),
+                Constraint::Ratio(1, 5), // date
+                Constraint::Ratio(1, 5), // source
+                Constraint::Ratio(1, 5), // amount
+                Constraint::Ratio(1, 5), // type
+                Constraint::Ratio(1, 5), // tag
             ])
             .header(header)
             .block(theme.block("Transactions "))
+            .column_spacing(1)
             .highlight_style(theme.highlight_style())
             .highlight_symbol("▶ ");
 
@@ -358,14 +360,16 @@ fn draw_recurring_management(f: &mut Frame, app: &App, theme: &Theme) {
 
         let mut state = create_table_state(app.selected_recurring);
 
+        // evenly distribute columns
         let table = Table::new(rows, &[
-                Constraint::Length(2),
-                Constraint::Length(22),
-                Constraint::Length(11),
-                Constraint::Length(8),
+                Constraint::Ratio(1, 4),
+                Constraint::Ratio(1, 4),
+                Constraint::Ratio(1, 4),
+                Constraint::Ratio(1, 4),
             ])
             .header(header)
             .block(theme.block(" 🔄 List "))
+            .column_spacing(1)
             .highlight_style(theme.highlight_style())
             .highlight_symbol("▶ ");
 
