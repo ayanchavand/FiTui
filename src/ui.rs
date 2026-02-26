@@ -22,13 +22,6 @@ use header::draw_header;
 mod modal;
 use modal::draw_popup;
 
-// Layout constants
-const HEADER_MARGIN_LEFT: u16 = 10;
-const HEADER_MARGIN_RIGHT: u16 = 10;
-const HEADER_CONTENT_WIDTH: u16 = 80;
-const HEADER_PANEL_WIDTH: u16 = 33;
-const HEADER_PANEL_WIDTH_CENTER: u16 = 34;
-
 const POPUP_WIDTH_PERCENT: u16 = 60;
 const POPUP_HEIGHT_PERCENT: u16 = 30;
 

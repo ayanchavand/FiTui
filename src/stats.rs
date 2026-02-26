@@ -199,7 +199,7 @@ pub fn draw_stats_view(f: &mut Frame, area: Rect, snapshot: &StatsSnapshot, them
 
     let earned_chart = BarChart::default()
         .data(&monthly_earned)
-        .block(Block::default().title("Monthly Earned").borders(ratatui::widgets::Borders::ALL))
+        .block(theme.block("Monthly Earned"))
         .max(max_month.max(1))
         .bar_width(7)
         .bar_gap(1)

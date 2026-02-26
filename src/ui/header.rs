@@ -77,13 +77,7 @@ fn build_balance_panel(balance: f64, currency: &str, theme: &Theme) -> Paragraph
     ];
     
     Paragraph::new(content)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_set(ratatui::symbols::border::ROUNDED)
-                .border_style(Style::default().fg(theme.accent))
-                .style(Style::default().bg(theme.surface))
-        )
+        .block(theme.panel())
         .alignment(Alignment::Center)
 }
 
