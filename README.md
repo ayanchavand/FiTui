@@ -2,9 +2,11 @@
 
 [![Built With Ratatui](https://ratatui.rs/built-with-ratatui/badge.svg)](https://ratatui.rs/)
 ![Crates.io Version](https://img.shields.io/crates/v/FiTui?style=for-the-badge)
+![Crates.io Downloads (latest version)](https://img.shields.io/crates/dv/fitui?style=flat-square)
 
 
-A lightweight terminal-based personal finance tracker built in Rust. Record transactions, track spending, and view financial insights, all from your terminal.
+
+A lightweight terminal-based personal finance manager. Record transactions, track spending, and view financial insights, all from your terminal.
 
 **Version:** 0.2.0
 
@@ -112,7 +114,7 @@ tags:
 
 ## Planned Features
 
-### 🚧 Coming Soon
+### Coming Soon
 - **Enhanced Stats Page** – More visualizations, charts, and filtering options
 - **CSV Import** – Bulk import transactions from PayPal, GPay, bank statements, and other sources
 - **Budget Goals & Alerts** – Set monthly spending limits per tag with notifications
@@ -120,7 +122,7 @@ tags:
 - **Export Reports** – Generate CSV/PDF reports for tax or accounting purposes
 - **Custom Date Ranges** – View stats for specific periods (last week, quarter, year)
 
-### 💡 Under Consideration
+### Under Consideration
 
 - **Multi-Currency Support** – Track expenses in different currencies with conversion
 - **Transaction Notes** – Add detailed descriptions or memos to entries

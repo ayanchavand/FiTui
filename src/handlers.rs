@@ -4,7 +4,21 @@ use crate::app::{App, Mode, PopupAction, PopupKind};
 use crate::db::DbHandle;
 use crate::stats;
 
-pub fn handle_key(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
+pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+    // global tab/arrow handling applies when we're in any of the
+    // "main" views. Adding/popup mode shouldn't switch tabs.
+    match key {
+        KeyCode::Tab | KeyCode::Right if matches!(app.mode, Mode::Normal | Mode::Stats | Mode::RecurringManagement) => {
+            app.next_tab();
+            return false;
+        }
+        KeyCode::BackTab | KeyCode::Left if matches!(app.mode, Mode::Normal | Mode::Stats | Mode::RecurringManagement) => {
+            app.prev_tab();
+            return false;
+        }
+        _ => {}
+    }
+
     match app.mode {
         Mode::Normal => handle_normal(app, key, conn),
         Mode::Adding => handle_form(app, key, conn),
@@ -69,14 +83,7 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &DbHandle) -> bool {
             app.mode = Mode::Adding;
         }
 
-        KeyCode::Char('s') => {
-            app.mode = Mode::Stats;
-        }
-
-        KeyCode::Char('v') => {
-            app.mode = Mode::RecurringManagement;
-            app.selected_recurring = 0;
-        }
+        // old keys removed; tabs handle view switching now
 
         KeyCode::Up => {
             if app.selected > 0 {

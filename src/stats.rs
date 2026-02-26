@@ -135,7 +135,7 @@ pub fn calculate_monthly_history(transactions: &[Transaction]) -> Vec<(String, f
 // Stats UI rendering functions
 // ============================================================================
 
-pub fn draw_stats_view(f: &mut Frame, snapshot: &StatsSnapshot, theme: &Theme, currency: &str) {
+pub fn draw_stats_view(f: &mut Frame, area: Rect, snapshot: &StatsSnapshot, theme: &Theme, currency: &str) {
     let earned = snapshot.earned;
     let spent = snapshot.spent;
     let balance = snapshot.balance;
@@ -155,7 +155,7 @@ pub fn draw_stats_view(f: &mut Frame, snapshot: &StatsSnapshot, theme: &Theme, c
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([Constraint::Min(1), Constraint::Length(3)])
-        .split(f.size());
+        .split(area);
 
     // Split main stats area into top charts and bottom breakdown
     let top_bottom = Layout::default()
@@ -264,7 +264,11 @@ pub fn draw_stats_view(f: &mut Frame, snapshot: &StatsSnapshot, theme: &Theme, c
         .padding(ratatui::widgets::Padding::new(1, 1, 0, 0));
 
     let footer = Paragraph::new(
-        Line::styled("  [Esc] Back to Main View", Style::default().fg(theme.muted))
+        Line::from(vec![
+            Span::styled("  [Esc] Back", Style::default().fg(theme.muted)),
+            Span::styled("  ", Style::default()),
+            Span::styled("[Tab/←→] Switch view", Style::default().fg(theme.muted)),
+        ])
     )
         .block(footer_block)
         .alignment(Alignment::Left);

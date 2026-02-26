@@ -14,33 +14,14 @@ pub fn draw_header(
     theme: &Theme,
     currency: &str,
 ) {
-    // Add margin for centering
-    let margin_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(5),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    let horizontal_margin = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(super::HEADER_MARGIN_LEFT as u16),
-            Constraint::Percentage(super::HEADER_CONTENT_WIDTH as u16),
-            Constraint::Percentage(super::HEADER_MARGIN_RIGHT as u16),
-        ])
-        .split(margin_layout[1]);
-
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(super::HEADER_PANEL_WIDTH as u16),
-            Constraint::Percentage(super::HEADER_PANEL_WIDTH_CENTER as u16),
-            Constraint::Percentage(super::HEADER_PANEL_WIDTH as u16),
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
         ])
-        .split(horizontal_margin[1]);
+        .split(area);
 
     f.render_widget(
         build_earned_panel(earned, currency, theme),
