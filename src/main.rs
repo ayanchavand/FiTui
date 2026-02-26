@@ -24,6 +24,15 @@ use ratatui::prelude::*;
 use app::App;
 
 fn main() -> io::Result<()> {
+    // libsql remote (Turso) futures are large and can overflow the default
+    // 1 MB main-thread stack on Windows when driven by block_on.
+    // Run everything on a thread with a bigger stack to avoid the overflow.
+    let builder = std::thread::Builder::new().stack_size(8 * 1024 * 1024);
+    let handler = builder.spawn(run).unwrap();
+    handler.join().unwrap()
+}
+
+fn run() -> io::Result<()> {
     let cfg = config::load_config();
     let conn = db::init_db(&cfg);
 

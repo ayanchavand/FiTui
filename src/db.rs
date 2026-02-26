@@ -239,7 +239,7 @@ pub fn get_transactions(db: &DbHandle) -> libsql::Result<Vec<Transaction>> {
             .query(
                 "SELECT id, source, amount, kind, tag, date
                  FROM transactions
-                 ORDER BY date DESC",
+                 ORDER BY date DESC, id DESC",
                 (),
             )
             .await?;
