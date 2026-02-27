@@ -8,6 +8,8 @@ pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
     // global tab/arrow handling applies when we're in any of the
     // "main" views. Adding/popup mode shouldn't switch tabs.
     match key {
+        KeyCode::Char('q') => return true,
+
         KeyCode::Tab | KeyCode::Right if matches!(app.mode, Mode::Normal | Mode::Stats | Mode::RecurringManagement) => {
             app.next_tab();
             return false;
@@ -75,15 +77,11 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
     let len = app.transactions.len();
 
     match key {
-        KeyCode::Char('q') => return true,
-
         KeyCode::Char('a') => {
             app.form.reset();
             app.editing = None;
             app.mode = Mode::Adding;
         }
-
-        // old keys removed; tabs handle view switching now
 
         KeyCode::Up => {
             if app.selected > 0 {
