@@ -4,60 +4,50 @@
 ![Crates.io Version](https://img.shields.io/crates/v/FiTui?style=for-the-badge)
 ![Crates.io Downloads (latest version)](https://img.shields.io/crates/dv/fitui?style=flat-square)
 
+A lightweight terminal-based personal finance tracker. Record transactions, track spending, and view financial insights from your terminal.
 
-
-A lightweight terminal-based personal finance manager. Record transactions, track spending, and view financial insights, all from your terminal.
-
-**Version:** 0.2.0
+**Version:** 0.3.0
 
 ---
 
 ## Features
 
-- **Transaction Management** – Add, view, and delete credit/debit transactions
-- **Smart Stats** – View totals (earned, spent, balance) and spending breakdowns by tag
-- **Recurring Transactions** – Auto-insert monthly bills, salary, and subscriptions
-- **Local & Private** – SQLite database with configurable tags and currency (YAML)
-- **Keyboard-Driven** – Fast, efficient terminal UI
+- Transaction management: add, edit, and delete credit/debit entries
+- Stats view with totals and spending breakdowns by tag
+- Recurring transactions for bills, salary, and subscriptions
+- Local SQLite storage with configurable tags and currency
+- Keyboard-driven interface
 
 ### Screenshots
 
-| Main Interface | Stats View |
-|----------------|------------|
-| ![Main interface](assets/main_page.png) | ![Stats view](assets/stats_page.png) |
+#### Main Interface
+![Main interface](assets/main_page.png)
+
+#### Stats View
+![Stats view](assets/stats_page.png)
 
 ---
-## Change Log
-
-### v0.2.0
-- Added recurring payments management window
-- Enhanced recurring transaction handling logic
-- Added get_recurring_for_transaction method in App
-- Improved recurring entries migration logic to support updated schema
-- Modularized UI components (transaction form, header, modal rendering)
-- Improved popup rendering and visual separation
-- Fixed form field order mismatch to align with navigation logic
-- Removed redundant code and improved internal readability
-- Added unit tests for form, stats, and model logic
-- Added integration tests using in-memory SQLite
-- Added migration safety tests
-
 
 ## Installation
 
-### Prerequisites
-- [Rust](https://rustup.rs/) installed
+### Via Cargo
 
-### Build
+```bash
+cargo install fitui
+```
+
+### Build from Source
+
+Requires [Rust](https://rustup.rs/).
+
 ```bash
 cargo build --release
 ```
 
-Binary location: `target/release/fitui` (Windows: `fitui.exe`)
-
-### Install
+Binary: `target/release/fitui` (Windows: `fitui.exe`)
 
 **Linux / macOS**
+
 ```bash
 mkdir -p ~/.local/bin
 cp target/release/fitui ~/.local/bin/
@@ -65,40 +55,45 @@ chmod +x ~/.local/bin/fitui
 fitui
 ```
 
+Ensure `~/.local/bin` is in your `$PATH`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 **Windows**
-1. Copy `fitui.exe` to a permanent location (e.g., `C:\Users\<you>\cli\`)
-2. Add that folder to your PATH
+
+1. Copy `fitui.exe` to a permanent location (e.g. `C:\Users\<you>\bin\`)
+2. Add that folder to your `PATH` via System Properties
 3. Run `fitui` from any terminal
 
 **Termux (Android)**
+
 ```bash
 pkg install rust
 cargo build --release
 cp target/release/fitui ~/.local/bin/
 fitui
 ```
-*Note: First build may take 10-15 minutes on mobile devices.*
+
+Note: first build may take 10-15 minutes on mobile.
 
 ---
 
 ## Configuration
 
-### File Locations
+Config is created automatically on first run.
 
 | OS | Database | Config |
 |----|----------|--------|
-| **Linux** | `~/.local/share/fitui/budget.db` | `~/.config/fitui/config.yaml` |
-| **macOS** | `~/Library/Application Support/com.ayan.fitui/budget.db` | `~/Library/Preferences/com.ayan.fitui/config.yaml` |
-| **Windows** | `AppData\Roaming\ayan\fitui\data\budget.db` | `AppData\Roaming\ayan\fitui\config\config.yaml` |
+| Linux | `~/.local/share/fitui/budget.db` | `~/.config/fitui/config.yaml` |
+| macOS | `~/Library/Application Support/com.ayan.fitui/budget.db` | `~/Library/Preferences/com.ayan.fitui/config.yaml` |
+| Windows | `AppData\Roaming\ayan\fitui\data\budget.db` | `AppData\Roaming\ayan\fitui\config\config.yaml` |
 
-*Config file is auto-created on first run.*
-
-### Tags & Currency
-
-Edit `config.yaml` to customize:
+### config.yaml
 
 ```yaml
-currency: ₹  # Common symbols: $, €, £, ¥, ₹, ₽, ₩, ฿, ₪
+currency: "$"  # $, EUR, GBP, JPY, INR, etc.
 
 tags:
   - food
@@ -111,26 +106,39 @@ tags:
 
 ---
 
+## Planned
 
-## Planned Features
+- CSV import from bank statements and payment apps
+- Budget limits per tag
+- Search and filter by amount, date, or tag
+- Export to CSV/PDF
+- Custom date range stats
+- Multi-currency support
+- Transaction notes
+- Data backup and sync
 
-### Coming Soon
-- **Enhanced Stats Page** – More visualizations, charts, and filtering options
-- **CSV Import** – Bulk import transactions from PayPal, GPay, bank statements, and other sources
-- **Budget Goals & Alerts** – Set monthly spending limits per tag with notifications
-- **Search & Filter** – Find transactions by amount, date range, tag, or description
-- **Export Reports** – Generate CSV/PDF reports for tax or accounting purposes
-- **Custom Date Ranges** – View stats for specific periods (last week, quarter, year)
+Feature request or bug? [Open an issue](https://github.com/ayanchavand/fitui/issues).
 
-### Under Consideration
+---
 
-- **Multi-Currency Support** – Track expenses in different currencies with conversion
-- **Transaction Notes** – Add detailed descriptions or memos to entries
-- **Split Transactions** – Assign a single expense to multiple tags
-- **Data Backup/Sync** – Export/import database for backup or cross-device sync
-- **Themes & Colors** – Customizable color schemes for the terminal UI
+## Changelog
 
-> Have a feature request? [Open an issue](https://github.com/ayanchavand/fitui/issues) or contribute!
+### [0.3.0] - 2026-02-27
+
+**Added**
+- Tab-based navigation across views
+- Active tab indicator
+- Transaction date grouping
+- Ratio-based column constraints for consistent table layout
+- Improved empty state messaging
+
+**Changed**
+- Transactions list refactored to table layout
+- UI formatting and spacing improvements
+- Cleaner tab rendering
+
+**Fixed**
+- Quit now works regardless of current mode
 
 ---
 

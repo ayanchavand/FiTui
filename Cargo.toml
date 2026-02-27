@@ -1,8 +1,8 @@
 [package]
 name = "FiTui"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
-description = "Terminal-based personal finance manager"
+description = "Terminal-based personal expense tracker"
 license = "MIT"
 repository = "https://github.com/ayanchavand/FiTui"
 [dependencies]
