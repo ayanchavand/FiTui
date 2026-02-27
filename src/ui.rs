@@ -2,6 +2,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Table, Row, Cell, TableState, Padding, Paragraph},
 };
+use chrono::Datelike as _;
 
 use crate::{
     app::{App, Mode},
@@ -28,27 +29,36 @@ const POPUP_HEIGHT_PERCENT: u16 = 30;
 fn draw_tabs(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
     let titles: Vec<Line> = TAB_TITLES
         .iter()
-        .map(|t| Line::from(Span::styled(
-            format!(" {} ", t),
-            Style::default().fg(theme.foreground),
-        )))
+        .enumerate()
+        .map(|(i, t)| {
+            let label = format!("  {}  ", t);
+            if i == app.current_tab() {
+                Line::from(Span::styled(
+                    label,
+                    Style::default()
+                        .fg(theme.background)
+                        .bg(theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                ))
+            } else {
+                Line::from(Span::styled(
+                    label,
+                    Style::default().fg(theme.foreground).bg(theme.surface),
+                ))
+            }
+        })
         .collect();
 
     let tabs = ratatui::widgets::Tabs::new(titles)
         .select(app.current_tab())
-        // no block = no borders
-        .style(
-            Style::default()
-                .bg(theme.surface)   // solid bar color
-                .fg(theme.foreground),
-        )
+        .style(Style::default().bg(theme.surface).fg(theme.foreground))
         .highlight_style(
             Style::default()
-                .bg(theme.accent)        // invert background
-                .fg(theme.background)    // invert foreground
+                .bg(theme.accent)
+                .fg(theme.background)
                 .add_modifier(Modifier::BOLD),
         )
-        .divider(Span::raw(" ")); // remove pipe dividers
+        .divider(Span::styled("│", Style::default().fg(theme.subtle)));
 
     f.render_widget(tabs, area);
 }
@@ -56,14 +66,13 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
 pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
     let theme = Theme::default();
 
-    // allocate a small strip at top for tabs, remainder for view-specific content
     let chunks = Layout::default()
-    .direction(Direction::Vertical)
-    .constraints([
-        Constraint::Length(1),   // ← was 3
-        Constraint::Min(1),
-    ])
-    .split(f.size());
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(1),
+        ])
+        .split(f.size());
 
     draw_tabs(f, chunks[0], app, &theme);
     let content_area = chunks[1];
@@ -160,75 +169,149 @@ fn draw_transactions_list(
                 Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC),
             ),
             Span::styled(
-                "'a'",
+                "a",
                 Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                " to add one",
+                " to add one.",
                 Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC),
             ),
         ]));
         f.render_widget(empty, layout[0]);
     } else {
-        // header with vertical separators
+        // Column header row — TYPE removed, BALANCE added
         let header = Row::new(vec![
-            Cell::from(Span::styled(
-                "Date",
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("DATE",    theme.accent, theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Source",
-                Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("SOURCE",  theme.subtle, theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Amount",
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("AMOUNT",  theme.accent, theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Type",
-                Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("BALANCE", theme.subtle, theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Rec",
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("RECUR",   theme.accent, theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Tag",
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("TAG",     theme.accent, theme),
         ])
-        .style(Style::default().bg(theme.accent_soft));
+        .style(Style::default().bg(theme.accent_soft))
+        .height(1);
 
-        // build rows (horizontal separators removed)
-        let mut rows_with_sep: Vec<Row> = Vec::new();
-        for tx in transactions {
-            rows_with_sep.push(transaction_row(tx, app, theme, &app.currency));
+        // Pre-compute running balance for each transaction (oldest → newest).
+        // Transactions are assumed to be stored newest-first, so we reverse,
+        // accumulate, then reverse back so the index matches the display order.
+        let mut running: Vec<f64> = Vec::with_capacity(transactions.len());
+        {
+            let mut bal = 0f64;
+            for tx in transactions.iter().rev() {
+                match tx.kind {
+                    TransactionType::Credit => bal += tx.amount,
+                    TransactionType::Debit  => bal -= tx.amount,
+                }
+                running.push(bal);
+            }
+            running.reverse();
+        }
+
+        // Build rows, inserting a date-group divider whenever the date changes.
+        // We track the "previous date label" and inject a separator row before
+        // the first transaction of each new group.
+        let today     = chrono::Local::now().date_naive();
+        let yesterday = today - chrono::Duration::days(1);
+
+        let date_label = |date_str: &str| -> String {
+            if let Ok(d) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                if d == today     { return "Today".to_string(); }
+                if d == yesterday { return "Yesterday".to_string(); }
+                // Same year → omit the year for brevity
+                if d.year() == today.year() {
+                    return d.format("%b %-d").to_string(); // e.g. "Feb 24"
+                }
+                return d.format("%b %-d, %Y").to_string();
+            }
+            date_str.to_string()
+        };
+
+        // We need to know the total column count to span the divider row.
+        // Columns: DATE │ SOURCE │ AMOUNT │ BALANCE │ RECUR │ TAG = 11 cells.
+        const COL_COUNT: usize = 11;
+
+        let mut rows: Vec<Row> = Vec::new();
+        let mut prev_date: Option<String> = None;
+        let mut table_index: usize = 0; // tracks real tx rows for alternating shade
+
+        for (i, tx) in transactions.iter().enumerate() {
+            let needs_divider = prev_date.as_deref() != Some(&tx.date);
+
+            if needs_divider {
+                let label = date_label(&tx.date);
+                // Build a single-cell divider that spans all columns.
+                // We fake the span by making the first cell wide and leaving
+                // the rest empty — ratatui tables don't support true colspan,
+                // so we put the label in column 0 and blank the rest.
+                let divider_cells: Vec<Cell> = (0..COL_COUNT)
+                    .map(|col| {
+                        if col == 0 {
+                            Cell::from(
+                                Text::from(format!("  ── {} ", label))
+                                    .style(Style::default()
+                                        .fg(theme.accent)
+                                        .add_modifier(Modifier::BOLD | Modifier::ITALIC)),
+                            )
+                        } else {
+                            Cell::from(
+                                Text::from(if col % 2 == 1 { "─" } else { "" })
+                                    .style(Style::default().fg(theme.subtle)),
+                            )
+                        }
+                    })
+                    .collect();
+
+                rows.push(
+                    Row::new(divider_cells)
+                        .style(Style::default().bg(theme.surface))
+                        .height(1),
+                );
+                prev_date = Some(tx.date.clone());
+            }
+
+            // Alternating row background: even/odd based on real tx index.
+            let row_bg = if table_index % 2 == 0 {
+                theme.background
+            } else {
+                theme.surface // slightly lighter stripe
+            };
+            table_index += 1;
+
+            rows.push(transaction_row(tx, running[i], app, theme, &app.currency, row_bg));
         }
 
         let mut state = create_table_state(app.selected);
 
-        // columns now include Rec indicator plus separator columns
-        let table = Table::new(rows_with_sep, &[
-                Constraint::Ratio(1, 12), // date
-                Constraint::Length(1),     // sep
-                Constraint::Ratio(1, 12), // source
-                Constraint::Length(1),
-                Constraint::Ratio(1, 12), // amount
-                Constraint::Length(1),
-                Constraint::Ratio(1, 12), // type
-                Constraint::Length(1),
-                Constraint::Ratio(1, 12), // rec
-                Constraint::Length(1),
-                Constraint::Ratio(1, 12), // tag
+        // Columns: DATE │ SOURCE │ AMOUNT │ BALANCE │ RECUR │ TAG
+        // TYPE removed (redundant with color+symbol on AMOUNT).
+        // BALANCE added in its place at ~same width.
+        //   DATE    12% — "YYYY-MM-DD"
+        //   SOURCE  28% — widest free-text
+        //   AMOUNT  14% — colored amount with symbol
+        //   BALANCE 14% — running balance
+        //   RECUR   10% — "Monthly" max
+        //   TAG     22% — second free-text
+        let table = Table::new(rows, &[
+                Constraint::Percentage(12), // DATE
+                Constraint::Length(1),      // │
+                Constraint::Percentage(28), // SOURCE
+                Constraint::Length(1),      // │
+                Constraint::Percentage(14), // AMOUNT
+                Constraint::Length(1),      // │
+                Constraint::Percentage(14), // BALANCE
+                Constraint::Length(1),      // │
+                Constraint::Percentage(10), // RECUR
+                Constraint::Length(1),      // │
+                Constraint::Percentage(22), // TAG
             ])
             .header(header)
-            .block(theme.block("Transactions "))
-            .column_spacing(1)
+            .block(theme.block("Transactions"))
+            .column_spacing(0)
             .style(Style::default().bg(theme.background))
             .highlight_style(theme.highlight_style())
             .highlight_symbol("▶ ");
@@ -236,147 +319,157 @@ fn draw_transactions_list(
         f.render_stateful_widget(table, layout[0], &mut state);
     }
 
-    // Enhanced footer with better visual grouping
+    // Footer hint bar
     let footer_block = Block::default()
         .borders(ratatui::widgets::Borders::TOP)
         .border_style(Style::default().fg(theme.subtle))
         .style(Style::default().bg(theme.background))
         .padding(Padding::new(1, 1, 0, 0));
 
-    let footer = Paragraph::new(Line::from(vec![
-        Span::styled("  [", theme.muted_text()),
-        Span::styled("↑↓", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Navigate  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("Tab/←→", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Switch view  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("d", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
-        Span::styled("] Delete  ", theme.muted_text()),
+    let key   = |k: &'static str| Span::styled(k, Style::default().fg(theme.accent).add_modifier(Modifier::BOLD));
+    let label = |l: &'static str| Span::styled(l, theme.muted_text());
+    let sep   = || Span::styled("  ", theme.muted_text());
 
-        Span::styled("[", theme.muted_text()),
-        Span::styled("e", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
-        Span::styled("] Edit  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("q", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
-        Span::styled("] Quit", theme.muted_text()),
+    let footer = Paragraph::new(Line::from(vec![
+        key("↑↓"), label(" Navigate"),  sep(),
+        key("Tab"), label("/"), key("←→"), label(" Switch view"), sep(),
+        key("a"), label(" Add"),  sep(),
+        key("e"), label(" Edit"),  sep(),
+        key("d"), label(" Delete"), sep(),
+        key("q"), label(" Quit"),
     ]))
     .block(footer_block);
 
     f.render_widget(footer, layout[1]);
 }
 
-// Helpers for the new table-based UI
+// ---------------------------------------------------------------------------
+// Row builders
+// ---------------------------------------------------------------------------
 
-fn transaction_row(tx: &Transaction, app: &App, theme: &Theme, currency: &str) -> Row<'static> {
+fn transaction_row(
+    tx: &Transaction,
+    running_balance: f64,
+    app: &App,
+    theme: &Theme,
+    currency: &str,
+    row_bg: ratatui::style::Color,
+) -> Row<'static> {
     let color = theme.transaction_color(tx.kind);
-    let (icon, _kind_label) = match tx.kind {
-        TransactionType::Credit => ("↑", "Credit"),
-        TransactionType::Debit => ("↓", "Debit"),
+
+    let direction_symbol = match tx.kind {
+        TransactionType::Credit => "▲",
+        TransactionType::Debit  => "▼",
     };
 
-    let recurring_indicator = app
+    let recur_label = app
         .get_recurring_for_transaction(tx)
-        .map(|r| {
-            let interval_icon = match r.interval {
-                RecurringInterval::Daily => "📅",
-                RecurringInterval::Weekly => "📆",
-                RecurringInterval::Monthly => "📅",
-            };
-            interval_icon.to_string()
+        .map(|r| match r.interval {
+            RecurringInterval::Daily   => "Daily",
+            RecurringInterval::Weekly  => "Weekly",
+            RecurringInterval::Monthly => "Monthly",
         })
-        .unwrap_or_default();
+        .unwrap_or("-");
+
+    let amount_str  = format!("{} {}{:.2}", direction_symbol, currency, tx.amount);
+    let balance_str = format!("{}{:.2}", currency, running_balance);
+
+    // Balance color: green if positive, red if negative, muted if zero
+    let balance_color = if running_balance > 0.0 {
+        theme.credit
+    } else if running_balance < 0.0 {
+        theme.debit
+    } else {
+        theme.muted
+    };
 
     Row::new(vec![
-        Cell::from(Span::styled(
-            format!("{:<11}", tx.date),
-            Style::default().fg(theme.muted),
-        )),
+        // DATE
+        Cell::from(
+            Text::from(tx.date.clone())
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.muted).bg(row_bg)),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            format!("{:<15}", truncate_string(&tx.source, 15)),
-            Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD),
-        )),
+        // SOURCE
+        Cell::from(
+            Text::from(truncate_string(&tx.source, 40))
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.foreground).bg(row_bg).add_modifier(Modifier::BOLD)),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            format!("{}{:>9.2}", currency, tx.amount),
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
-        )),
+        // AMOUNT — colored with direction symbol
+        Cell::from(
+            Text::from(amount_str)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(color).bg(row_bg).add_modifier(Modifier::BOLD)),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            icon,
-            Style::default().fg(color).add_modifier(Modifier::BOLD),
-        )),
+        // BALANCE — running total, color reflects sign
+        Cell::from(
+            Text::from(balance_str)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(balance_color).bg(row_bg)),
+        ),
         sep_cell(theme),
-        // new recurring column
-        Cell::from(Span::styled(
-            format!("{}", recurring_indicator),
-            Style::default().fg(theme.accent),
-        )),
+        // RECUR
+        Cell::from(
+            Text::from(recur_label)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(
+                    if recur_label == "-" { theme.muted } else { theme.accent },
+                ).bg(row_bg)),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            format!("#{}", tx.tag.as_str()),
-            Style::default()
-                .fg(theme.accent_soft)
-                .add_modifier(Modifier::ITALIC | Modifier::BOLD),
-        )),
+        // TAG
+        Cell::from(
+            Text::from(tx.tag.as_str().to_owned())
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.accent_soft).bg(row_bg).add_modifier(Modifier::ITALIC)),
+        ),
     ])
+    .style(Style::default().bg(row_bg))
 }
 
 fn recurring_row(entry: &crate::models::RecurringEntry, theme: &Theme) -> Row<'static> {
-    let status = if entry.active { "✓" } else { "✗" };
-    let status_style = if entry.active {
-        theme.success()
+    let (status_symbol, status_style) = if entry.active {
+        ("● Active",   theme.success())
     } else {
-        Style::default().fg(theme.muted)
+        ("○ Paused",   Style::default().fg(theme.muted))
     };
 
+    let interval_str = entry.interval.display().to_owned();
+
     Row::new(vec![
-        Cell::from(Span::styled(status, status_style)),
+        Cell::from(
+            Text::from(status_symbol)
+                .alignment(Alignment::Center)
+                .style(status_style),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            format!("{:<20}", truncate_string(&entry.source, 20)),
-            Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD),
-        )),
+        Cell::from(
+            Text::from(truncate_string(&entry.source, 30))
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD)),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            format!("{:>10}", entry.amount),
-            Style::default().fg(theme.accent),
-        )),
+        Cell::from(
+            Text::from(format!("{:.2}", entry.amount))
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.accent)),
+        ),
         sep_cell(theme),
-        Cell::from(Span::styled(
-            format!("{:<8}", entry.interval.display()),
-            Style::default()
-                .fg(theme.accent_soft)
-                .add_modifier(Modifier::ITALIC),
-        )),
+        Cell::from(
+            Text::from(interval_str)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(theme.accent_soft).add_modifier(Modifier::ITALIC)),
+        ),
     ])
 }
 
-fn sep_cell(theme: &Theme) -> Cell<'static> {
-    // vertical separator cell used between columns
-    Cell::from(Span::styled(
-        "│",
-        Style::default().fg(theme.subtle),
-    ))
-}
-
-fn truncate_string(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max_len - 1])
-    }
-}
-
-fn create_table_state(selected: usize) -> TableState {
-    let mut state = TableState::default();
-    state.select(Some(selected));
-    state
-}
+// ---------------------------------------------------------------------------
+// Recurring management view
+// ---------------------------------------------------------------------------
 
 fn draw_recurring_management(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
     let layout = Layout::default()
@@ -388,64 +481,62 @@ fn draw_recurring_management(f: &mut Frame, area: Rect, app: &App, theme: &Theme
         ])
         .split(area);
 
-    // Header
-    let header = Paragraph::new(Line::from(vec![
+    let header_para = Paragraph::new(Line::from(vec![
         Span::styled(
-            " Recurring Entries ",
+            " Recurring Entries",
             Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-        )
+        ),
     ]))
-    .block(theme.block(" "))
+    .block(theme.block(""))
     .alignment(Alignment::Left);
 
-    f.render_widget(header, layout[0]);
+    f.render_widget(header_para, layout[0]);
 
     if app.recurring_entries.is_empty() {
-        let empty = Paragraph::new("No recurring entries yet.")
-            .style(Style::default().fg(theme.muted));
+        let empty = Paragraph::new(
+            "No recurring entries yet. Add a transaction with a recurring interval to get started.",
+        )
+        .style(Style::default().fg(theme.muted).add_modifier(Modifier::ITALIC));
         f.render_widget(empty, layout[1]);
     } else {
-        let header = Row::new(vec![
-            Cell::from(""),
+        let table_header = Row::new(vec![
+            centered_header_cell("STATUS",   theme.subtle,      theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Source",
-                Style::default().fg(theme.subtle).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("SOURCE",   theme.subtle,      theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Amount",
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("AMOUNT",   theme.accent,      theme),
             sep_cell(theme),
-            Cell::from(Span::styled(
-                "Interval",
-                Style::default().fg(theme.accent_soft).add_modifier(Modifier::BOLD),
-            )),
+            centered_header_cell("INTERVAL", theme.accent_soft, theme),
         ])
-        .style(Style::default().bg(theme.accent_soft));
+        .style(Style::default().bg(theme.accent_soft))
+        .height(1);
 
-        // build rows for recurring entries without horizontal separators
-        let mut rows_with_sep: Vec<Row> = Vec::new();
-        for entry in &app.recurring_entries {
-            rows_with_sep.push(recurring_row(entry, theme));
-        }
+        let rows: Vec<Row> = app
+            .recurring_entries
+            .iter()
+            .map(|e| recurring_row(e, theme))
+            .collect();
 
         let mut state = create_table_state(app.selected_recurring);
 
-        // evenly distribute columns + separators
-        let table = Table::new(rows_with_sep, &[
-                Constraint::Ratio(1, 8), // status
-                Constraint::Length(1),
-                Constraint::Ratio(1, 8), // source
-                Constraint::Length(1),
-                Constraint::Ratio(1, 8), // amount
-                Constraint::Length(1),
-                Constraint::Ratio(1, 8), // interval
+        // Same spacing philosophy: sep_cell handles gaps, column_spacing(0) avoids
+        // double-spacing. Percentage splits the available width evenly:
+        //   STATUS   15% — "● Active" / "○ Paused"
+        //   SOURCE   45% — free text, deserves most space
+        //   AMOUNT   20% — numbers
+        //   INTERVAL 20% — "Monthly" etc.
+        let table = Table::new(rows, &[
+                Constraint::Percentage(15), // STATUS
+                Constraint::Length(1),      // │
+                Constraint::Percentage(45), // SOURCE
+                Constraint::Length(1),      // │
+                Constraint::Percentage(20), // AMOUNT
+                Constraint::Length(1),      // │
+                Constraint::Percentage(20), // INTERVAL
             ])
-            .header(header)
-            .block(theme.block(" 🔄 List "))
-            .column_spacing(1)
+            .header(table_header)
+            .block(theme.block(" 🔄 Scheduled"))
+            .column_spacing(0)
             .style(Style::default().bg(theme.background))
             .highlight_style(theme.highlight_style())
             .highlight_symbol("▶ ");
@@ -453,37 +544,68 @@ fn draw_recurring_management(f: &mut Frame, area: Rect, app: &App, theme: &Theme
         f.render_stateful_widget(table, layout[1], &mut state);
     }
 
-    // Footer
+    let key = |k: &'static str| Span::styled(k, Style::default().fg(theme.accent).add_modifier(Modifier::BOLD));
+    let label = |l: &'static str| Span::styled(l, theme.muted_text());
+    let sep = || Span::styled("  ", theme.muted_text());
+
     let footer = Paragraph::new(Line::from(vec![
-        Span::styled("  [", theme.muted_text()),
-        Span::styled("↑↓", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Navigate  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("Space", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Toggle  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("d", Style::default().fg(theme.debit).add_modifier(Modifier::BOLD)),
-        Span::styled("] Delete  ", theme.muted_text()),
-        
-        Span::styled("[", theme.muted_text()),
-        Span::styled("Esc", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Back  ", theme.muted_text()),
-        Span::styled("[", theme.muted_text()),
-        Span::styled("Tab/←→", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-        Span::styled("] Switch view", theme.muted_text()),
+        key("↑↓"), label(" Navigate"), sep(),
+        key("Space"), label(" Toggle active"), sep(),
+        key("d"), label(" Delete"), sep(),
+        key("Esc"), label(" Back"), sep(),
+        key("Tab"), label("/"), key("←→"), label(" Switch view"),
     ]))
     .block(
         Block::default()
             .borders(ratatui::widgets::Borders::TOP)
             .border_style(Style::default().fg(theme.subtle))
             .style(Style::default().bg(theme.background))
+            .padding(Padding::new(1, 1, 0, 0)),
     )
     .alignment(Alignment::Left);
 
     f.render_widget(footer, layout[2]);
 }
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+fn sep_cell(theme: &Theme) -> Cell<'static> {
+    Cell::from(Span::styled(
+        "│",
+        Style::default().fg(theme.subtle),
+    ))
+}
+
+/// Build a bold, center-aligned header cell with the given foreground color.
+fn centered_header_cell(label: &'static str, fg: ratatui::style::Color, _theme: &Theme) -> Cell<'static> {
+    Cell::from(
+        Text::from(label)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(fg).add_modifier(Modifier::BOLD)),
+    )
+}
+
+/// Truncate a string to `max_len` chars, appending an ellipsis if cut.
+fn truncate_string(s: &str, max_len: usize) -> String {
+    if s.chars().count() <= max_len {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_len - 1).collect();
+        format!("{}…", truncated)
+    }
+}
+
+fn create_table_state(selected: usize) -> TableState {
+    let mut state = TableState::default();
+    state.select(Some(selected));
+    state
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -497,7 +619,16 @@ mod tests {
 
     #[test]
     fn truncate_string_long() {
+        // 5 chars → keep 4 + ellipsis
         assert_eq!(truncate_string("abcdef", 5), "abcd…");
+    }
+
+    #[test]
+    fn truncate_string_unicode() {
+        // Should truncate on char boundary, not byte boundary
+        let s = "héllo world";
+        let t = truncate_string(s, 6);
+        assert_eq!(t.chars().count(), 6); // 5 chars + ellipsis
     }
 
     #[test]
@@ -509,7 +640,7 @@ mod tests {
     #[test]
     fn transaction_row_format() {
         let theme = Theme::default();
-        let mut app = App {
+        let app = App {
             mode: Mode::Normal,
             form: crate::form::TransactionForm::new(),
             editing: None,
@@ -531,18 +662,19 @@ mod tests {
             date: "2026-02-25".into(),
         };
 
-        let row = transaction_row(&tx, &app, &theme, &app.currency);
-        // Basic content checks (string conversion may include styling)
+        let row = transaction_row(&tx, 12.34, &app, &theme, &app.currency, theme.background);
         let debug = format!("{:?}", row);
         assert!(debug.contains("Test"));
         assert!(debug.contains("12.34"));
-        // should include vertical separators
         assert!(debug.contains('│'));
+        // No leading '#' on tag
+        assert!(!debug.contains("#tag"));
+        // Should show interval placeholder
+        assert!(debug.contains('-'));
     }
 
     #[test]
     fn tabs_constant_and_selection() {
-        // ensure we kept three titles and selection reflects app state
         assert_eq!(TAB_TITLES.len(), 3);
         let mut app = App {
             mode: Mode::Normal,
@@ -582,7 +714,7 @@ mod tests {
         let debug = format!("{:?}", row);
         assert!(debug.contains("Foo"));
         assert!(debug.contains("99"));
-        assert!(debug.contains('│')); // vertical separator should appear
+        assert!(debug.contains('│'));
+        assert!(debug.contains("Active"));
     }
 }
-
