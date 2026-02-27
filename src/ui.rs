@@ -181,8 +181,6 @@ fn draw_transactions_list(
     } else {
         // Column header row — TYPE removed, BALANCE added
         let header = Row::new(vec![
-            centered_header_cell("DATE",    theme.accent, theme),
-            sep_cell(theme),
             centered_header_cell("SOURCE",  theme.subtle, theme),
             sep_cell(theme),
             centered_header_cell("AMOUNT",  theme.accent, theme),
@@ -232,8 +230,8 @@ fn draw_transactions_list(
         };
 
         // We need to know the total column count to span the divider row.
-        // Columns: DATE │ SOURCE │ AMOUNT │ BALANCE │ RECUR │ TAG = 11 cells.
-        const COL_COUNT: usize = 11;
+        // Columns: SOURCE │ AMOUNT │ BALANCE │ RECUR │ TAG = 9 cells.
+        const COL_COUNT: usize = 9;
 
         let mut rows: Vec<Row> = Vec::new();
         let mut prev_date: Option<String> = None;
@@ -244,22 +242,21 @@ fn draw_transactions_list(
 
             if needs_divider {
                 let label = date_label(&tx.date);
-                // Build a single-cell divider that spans all columns.
-                // We fake the span by making the first cell wide and leaving
-                // the rest empty — ratatui tables don't support true colspan,
-                // so we put the label in column 0 and blank the rest.
+                // Divider: lighter surface bg so it reads as a section heading
+                // sitting above the darker transaction rows.
+                // No per-cell bg — set at row level only so it stays consistent.
                 let divider_cells: Vec<Cell> = (0..COL_COUNT)
                     .map(|col| {
                         if col == 0 {
                             Cell::from(
-                                Text::from(format!("  ── {} ", label))
+                                Text::from(format!("  {} ", label))
                                     .style(Style::default()
                                         .fg(theme.accent)
-                                        .add_modifier(Modifier::BOLD | Modifier::ITALIC)),
+                                        .add_modifier(Modifier::BOLD)),
                             )
                         } else {
                             Cell::from(
-                                Text::from(if col % 2 == 1 { "─" } else { "" })
+                                Text::from(if col % 2 == 0 { "─────" } else { "" })
                                     .style(Style::default().fg(theme.subtle)),
                             )
                         }
@@ -268,38 +265,55 @@ fn draw_transactions_list(
 
                 rows.push(
                     Row::new(divider_cells)
+                        // surface = lighter tone, visually above tx rows
                         .style(Style::default().bg(theme.surface))
                         .height(1),
                 );
                 prev_date = Some(tx.date.clone());
             }
 
-            // Alternating row background: even/odd based on real tx index.
+            // Transaction rows: darker than the divider (background / row_alt).
+            // Do NOT set bg on individual cells — only on the Row via .style().
+            // Cell-level bg overrides highlight_style, killing selection visibility.
             let row_bg = if table_index % 2 == 0 {
                 theme.background
             } else {
-                theme.surface // slightly lighter stripe
+                theme.row_alt  // Add `row_alt` to Theme: a shade just above background, e.g. Color::Rgb(30,30,35) if background is Rgb(24,24,28)
             };
             table_index += 1;
 
             rows.push(transaction_row(tx, running[i], app, theme, &app.currency, row_bg));
         }
 
-        let mut state = create_table_state(app.selected);
+        // Compute the visual row index of the selected transaction.
+        // Each date group adds one divider row above its transactions, so we
+        // count how many unique date groups appear at or before `app.selected`.
+        let visual_selected = {
+            let mut dividers_above = 0usize;
+            let mut last_date: Option<&str> = None;
+            for (i, tx) in transactions.iter().enumerate() {
+                if last_date != Some(tx.date.as_str()) {
+                    dividers_above += 1;
+                    last_date = Some(tx.date.as_str());
+                }
+                if i == app.selected { break; }
+            }
+            app.selected + dividers_above
+        };
 
-        // Columns: DATE │ SOURCE │ AMOUNT │ BALANCE │ RECUR │ TAG
-        // TYPE removed (redundant with color+symbol on AMOUNT).
-        // BALANCE added in its place at ~same width.
-        //   DATE    12% — "YYYY-MM-DD"
-        //   SOURCE  28% — widest free-text
-        //   AMOUNT  14% — colored amount with symbol
-        //   BALANCE 14% — running balance
-        //   RECUR   10% — "Monthly" max
-        //   TAG     22% — second free-text
+        let mut state = create_table_state(visual_selected);
+
+        // Highlight: fully inverted accent. Works ONLY because transaction
+        // cells carry no per-cell bg — the Row .style() stripe is set at row
+        // level, which highlight_style can override. Cell-level bg would win
+        // and make the selection invisible.
+        let highlight = Style::default()
+            .bg(theme.accent)
+            .fg(theme.background)
+            .add_modifier(Modifier::BOLD);
+
         let table = Table::new(rows, &[
-                Constraint::Percentage(12), // DATE
-                Constraint::Length(1),      // │
-                Constraint::Percentage(28), // SOURCE
+                Constraint::Percentage(32), // SOURCE
                 Constraint::Length(1),      // │
                 Constraint::Percentage(14), // AMOUNT
                 Constraint::Length(1),      // │
@@ -313,7 +327,7 @@ fn draw_transactions_list(
             .block(theme.block("Transactions"))
             .column_spacing(0)
             .style(Style::default().bg(theme.background))
-            .highlight_style(theme.highlight_style())
+            .highlight_style(highlight)
             .highlight_symbol("▶ ");
 
         f.render_stateful_widget(table, layout[0], &mut state);
@@ -383,51 +397,48 @@ fn transaction_row(
         theme.muted
     };
 
+    // bg is set at the Row level only (via .style below).
+    // No per-cell bg — if cells override bg, highlight_style cannot paint
+    // the selected row and selection becomes invisible.
     Row::new(vec![
-        // DATE
-        Cell::from(
-            Text::from(tx.date.clone())
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(theme.muted).bg(row_bg)),
-        ),
-        sep_cell(theme),
         // SOURCE
         Cell::from(
             Text::from(truncate_string(&tx.source, 40))
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(theme.foreground).bg(row_bg).add_modifier(Modifier::BOLD)),
+                .style(Style::default().fg(theme.foreground).add_modifier(Modifier::BOLD)),
         ),
-        sep_cell(theme),
+        sep_cell_bg(theme, row_bg),
         // AMOUNT — colored with direction symbol
         Cell::from(
             Text::from(amount_str)
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(color).bg(row_bg).add_modifier(Modifier::BOLD)),
+                .style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
         ),
-        sep_cell(theme),
+        sep_cell_bg(theme, row_bg),
         // BALANCE — running total, color reflects sign
         Cell::from(
             Text::from(balance_str)
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(balance_color).bg(row_bg)),
+                .style(Style::default().fg(balance_color)),
         ),
-        sep_cell(theme),
+        sep_cell_bg(theme, row_bg),
         // RECUR
         Cell::from(
             Text::from(recur_label)
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if recur_label == "-" { theme.muted } else { theme.accent },
-                ).bg(row_bg)),
+                )),
         ),
-        sep_cell(theme),
+        sep_cell_bg(theme, row_bg),
         // TAG
         Cell::from(
             Text::from(tx.tag.as_str().to_owned())
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(theme.accent_soft).bg(row_bg).add_modifier(Modifier::ITALIC)),
+                .style(Style::default().fg(theme.accent_soft).add_modifier(Modifier::ITALIC)),
         ),
     ])
+    // Row-level bg: drives alternating stripes AND lets highlight_style override cleanly
     .style(Style::default().bg(row_bg))
 }
 
@@ -538,7 +549,13 @@ fn draw_recurring_management(f: &mut Frame, area: Rect, app: &App, theme: &Theme
             .block(theme.block(" 🔄 Scheduled"))
             .column_spacing(0)
             .style(Style::default().bg(theme.background))
-            .highlight_style(theme.highlight_style())
+            // Same inverted-accent highlight as transactions table
+            .highlight_style(
+                Style::default()
+                    .bg(theme.accent)
+                    .fg(theme.background)
+                    .add_modifier(Modifier::BOLD),
+            )
             .highlight_symbol("▶ ");
 
         f.render_stateful_widget(table, layout[1], &mut state);
@@ -575,6 +592,15 @@ fn sep_cell(theme: &Theme) -> Cell<'static> {
     Cell::from(Span::styled(
         "│",
         Style::default().fg(theme.subtle),
+    ))
+}
+
+/// Separator cell with an explicit background — use inside transaction rows so
+/// the stripe color is consistent across the full row width including separators.
+fn sep_cell_bg(theme: &Theme, bg: ratatui::style::Color) -> Cell<'static> {
+    Cell::from(Span::styled(
+        "│",
+        Style::default().fg(theme.subtle).bg(bg),
     ))
 }
 
