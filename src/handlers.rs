@@ -10,11 +10,21 @@ pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
     match key {
         KeyCode::Char('q') => return true,
 
-        KeyCode::Tab | KeyCode::Right if matches!(app.mode, Mode::Normal | Mode::Stats | Mode::RecurringManagement) => {
+        KeyCode::Tab | KeyCode::Right
+            if matches!(
+                app.mode,
+                Mode::Normal | Mode::Stats | Mode::RecurringManagement
+            ) =>
+        {
             app.next_tab();
             return false;
         }
-        KeyCode::BackTab | KeyCode::Left if matches!(app.mode, Mode::Normal | Mode::Stats | Mode::RecurringManagement) => {
+        KeyCode::BackTab | KeyCode::Left
+            if matches!(
+                app.mode,
+                Mode::Normal | Mode::Stats | Mode::RecurringManagement
+            ) =>
+        {
             app.prev_tab();
             return false;
         }
@@ -102,9 +112,7 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
                     "Confirm Delete",
                     format!(
                         "Delete this transaction?\n\n{}  ({}{})",
-                        tx.source,
-                        app.currency,
-                        tx.amount
+                        tx.source, app.currency, tx.amount
                     ),
                     PopupAction::DeleteTransaction(tx.id),
                 );
@@ -136,6 +144,10 @@ fn handle_form(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 
         KeyCode::Tab => {
             app.form.active = app.form.active.next();
+        }
+
+        KeyCode::BackTab => {
+            app.form.active = app.form.active.back();
         }
 
         // Arrow keys toggle Kind, cycle Tags, or toggle Recurring depending on active field
@@ -215,9 +227,11 @@ fn handle_recurring_management(app: &mut App, key: KeyCode, conn: &Connection) -
                 let entry = &app.recurring_entries[app.selected_recurring];
                 crate::db::delete_recurring_entry(conn, entry.id).unwrap();
                 app.refresh(conn);
-                
+
                 // Clamp selection if needed
-                if app.selected_recurring >= app.recurring_entries.len() && app.selected_recurring > 0 {
+                if app.selected_recurring >= app.recurring_entries.len()
+                    && app.selected_recurring > 0
+                {
                     app.selected_recurring -= 1;
                 }
             }

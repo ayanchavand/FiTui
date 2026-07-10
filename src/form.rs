@@ -1,4 +1,4 @@
-use crate::models::{TransactionType, RecurringInterval};
+use crate::models::{RecurringInterval, TransactionType};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Field {
@@ -31,6 +31,20 @@ impl Field {
         for (i, &f) in FIELD_ORDER.iter().enumerate() {
             if f == self {
                 return FIELD_ORDER[(i + 1) % len];
+            }
+        }
+
+        // Fallback: if not found (shouldn't happen), return Source
+        Field::Source
+    }
+
+    pub fn back(self) -> Self {
+        // Find the current field in FIELD_ORDER and return the next one,
+        // wrapping around to the first.
+        let len = FIELD_ORDER.len();
+        for (i, &f) in FIELD_ORDER.iter().enumerate() {
+            if f == self {
+                return FIELD_ORDER[(i + len - 1) % len];
             }
         }
 
@@ -135,11 +149,10 @@ impl TransactionForm {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{TransactionType, RecurringInterval};
+    use crate::models::{RecurringInterval, TransactionType};
 
     #[test]
     fn field_next_wraps() {
