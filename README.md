@@ -94,6 +94,7 @@ Config is created automatically on first run.
 
 ```yaml
 currency: "$"  # $, EUR, GBP, JPY, INR, etc.
+theme: "default"  # default, dracula, nord, gruvbox, or any custom theme
 
 tags:
   - food
@@ -102,7 +103,47 @@ tags:
   - bills
   - salary
   - other
+
+custom_themes:
+  dracula:
+    accent: "#bd93f9"
+    accent_soft: "#6272a4"
+    credit: "#50fa7b"
+    debit: "#ff5555"
+    muted: "#6272a4"
+    subtle: "#44475a"
+    background: "#282a36"
+    surface: "#343746"
+    row_alt: "#2d2f3b"
+    foreground: "#f8f8f2"
 ```
+
+## Themes & Customization
+
+FiTui supports out-of-the-box themes and full color customization using the `config.yaml` file.
+
+### Built-in Themes
+Change the `theme` field in `config.yaml` to one of the following:
+* `default` - Ocean blue dark palette
+* `dracula` - Vibrant vampire purple palette
+* `nord` - Cool arctic frost blue palette
+* `gruvbox` - Warm retro yellow/green palette
+
+### Custom Themes
+You can define your own themes under the `custom_themes` key or override the preconfigured ones. Colors can be defined as hex codes (e.g. `#ffffff`), standard color names (e.g. `red`, `blue`), or RGB format (e.g. `rgb(24, 24, 36)`):
+
+| Property | Description |
+|---|---|
+| `accent` | Main accent color (headers, cursor, active tab, and main titles) |
+| `accent_soft` | Border color for panel boundaries |
+| `credit` | Text color for income (credits) |
+| `debit` | Text color for expenses (debits) |
+| `muted` | Labels and secondary metadata hints |
+| `subtle` | Borders, vertical grids, and divider lines |
+| `background` | Primary terminal view background |
+| `surface` | Popups, highlights, and header row background |
+| `row_alt` | Alternating table row background color |
+| `foreground` | Standard text color |
 
 ---
 
