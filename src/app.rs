@@ -147,8 +147,9 @@ impl App {
         self.transactions = db::get_transactions(conn).unwrap_or_default();
         self.recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
-        if self.selected >= self.transactions.len() && self.selected > 0 {
-            self.selected -= 1;
+        let max_len = std::cmp::min(15, self.transactions.len());
+        if self.selected >= max_len && max_len > 0 {
+            self.selected = max_len - 1;
         }
     }
 

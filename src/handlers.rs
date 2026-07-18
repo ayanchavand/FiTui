@@ -100,7 +100,8 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
         }
 
         KeyCode::Down => {
-            if app.selected + 1 < len {
+            let max_len = std::cmp::min(15, len);
+            if app.selected + 1 < max_len {
                 app.selected += 1;
             }
         }

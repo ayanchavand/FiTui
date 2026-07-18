@@ -233,11 +233,12 @@ fn draw_transactions_list(
         // Columns: SOURCE │ AMOUNT │ BALANCE │ RECUR │ TAG = 9 cells.
         const COL_COUNT: usize = 9;
 
+        let limit = std::cmp::min(15, transactions.len());
         let mut rows: Vec<Row> = Vec::new();
         let mut prev_date: Option<String> = None;
         let mut table_index: usize = 0; // tracks real tx rows for alternating shade
 
-        for (i, tx) in transactions.iter().enumerate() {
+        for (i, tx) in transactions.iter().take(limit).enumerate() {
             let needs_divider = prev_date.as_deref() != Some(&tx.date);
 
             if needs_divider {
@@ -291,7 +292,7 @@ fn draw_transactions_list(
         let visual_selected = {
             let mut dividers_above = 0usize;
             let mut last_date: Option<&str> = None;
-            for (i, tx) in transactions.iter().enumerate() {
+            for (i, tx) in transactions.iter().take(limit).enumerate() {
                 if last_date != Some(tx.date.as_str()) {
                     dividers_above += 1;
                     last_date = Some(tx.date.as_str());
