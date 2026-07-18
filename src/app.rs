@@ -8,13 +8,44 @@ use crate::{
     theme::Theme,
 };
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Mode {
     Normal,
     Adding,
     Stats,
     Popup,
     RecurringManagement,
+    Filtering,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum FilterField {
+    MonthYear,
+    Tag,
+}
+
+impl FilterField {
+    pub fn next(&self) -> Self {
+        match self {
+            Self::MonthYear => Self::Tag,
+            Self::Tag => Self::MonthYear,
+        }
+    }
+
+    pub fn back(&self) -> Self {
+        match self {
+            Self::MonthYear => Self::Tag,
+            Self::Tag => Self::MonthYear,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TransactionFilter {
+    pub active: bool,
+    pub month_year: String,
+    pub tag_index: Option<usize>, // None represents "All"
+    pub active_field: FilterField,
 }
 
 #[derive(Clone)]
@@ -48,6 +79,7 @@ pub struct App {
     pub currency: String,
     pub popup: Option<PopupKind>,
     pub theme: Theme,
+    pub filter: TransactionFilter,
 }
 
 // helpers for tab management; the UI shows three tabs and the
@@ -58,7 +90,7 @@ impl App {
     /// 0 = transactions, 1 = stats, 2 = recurring management.
     pub fn current_tab(&self) -> usize {
         match self.mode {
-            Mode::Normal | Mode::Adding | Mode::Popup => 0,
+            Mode::Normal | Mode::Adding | Mode::Popup | Mode::Filtering => 0,
             Mode::Stats => 1,
             Mode::RecurringManagement => 2,
         }
@@ -140,6 +172,12 @@ impl App {
             currency: config.currency,
             popup: None,
             theme,
+            filter: TransactionFilter {
+                active: false,
+                month_year: String::new(),
+                tag_index: None,
+                active_field: FilterField::MonthYear,
+            },
         }
     }
 
@@ -203,12 +241,34 @@ impl App {
         self.refresh(conn);
     }
 
-    pub fn begin_edit_selected(&mut self) {
-        if self.transactions.is_empty() {
-            return;
+    pub fn get_filtered_transactions(&self) -> Vec<Transaction> {
+        if !self.filter.active {
+            return self.transactions.clone();
         }
+        self.transactions
+            .iter()
+            .filter(|tx| {
+                if let Some(tag_idx) = self.filter.tag_index {
+                    if tx.tag.as_str() != self.tags[tag_idx].as_str() {
+                        return false;
+                    }
+                }
+                if !self.filter.month_year.is_empty() {
+                    if !tx.date.starts_with(&self.filter.month_year) {
+                        return false;
+                    }
+                }
+                true
+            })
+            .cloned()
+            .collect()
+    }
 
-        let tx = &self.transactions[self.selected];
+    pub fn begin_edit_selected(&mut self) {
+        let tx = match self.selected_transaction() {
+            Some(t) => t,
+            None => return,
+        };
 
         self.form.source = tx.source.clone();
         self.form.amount = format!("{:.2}", tx.amount);
@@ -243,14 +303,10 @@ impl App {
     }
 
     pub fn delete_selected(&mut self, conn: &Connection) {
-        if self.transactions.is_empty() {
-            return;
+        if let Some(tx) = self.selected_transaction() {
+            db::delete_transaction(conn, tx.id).unwrap();
+            self.refresh(conn);
         }
-
-        let id = self.transactions[self.selected].id;
-        db::delete_transaction(conn, id).unwrap();
-
-        self.refresh(conn);
     }
 
     pub fn open_confirm_popup(
@@ -282,8 +338,9 @@ impl App {
         self.mode = Mode::Normal;
     }
 
-    pub fn selected_transaction(&self) -> Option<&Transaction> {
-        self.transactions.get(self.selected)
+    pub fn selected_transaction(&self) -> Option<Transaction> {
+        let filtered = self.get_filtered_transactions();
+        filtered.get(self.selected).cloned()
     }
 
     pub fn get_recurring_for_transaction(&self, tx: &Transaction) -> Option<&RecurringEntry> {
@@ -342,5 +399,66 @@ mod tests {
         assert_eq!(app.current_tab(), 1);
         app.set_tab(5);
         assert_eq!(app.current_tab(), 2);
+    }
+
+    #[test]
+    fn test_transaction_filtering() {
+        let mut app = base_app();
+        use crate::models::{Transaction, TransactionType, Tag};
+        
+        let tx1 = Transaction {
+            id: 1,
+            source: "Food shop".into(),
+            amount: 50.0,
+            kind: TransactionType::Debit,
+            tag: Tag("food".into()),
+            date: "2024-02-10".into(),
+        };
+        let tx2 = Transaction {
+            id: 2,
+            source: "Salary".into(),
+            amount: 2000.0,
+            kind: TransactionType::Credit,
+            tag: Tag("salary".into()),
+            date: "2024-02-15".into(),
+        };
+        let tx3 = Transaction {
+            id: 3,
+            source: "Hosting".into(),
+            amount: 15.0,
+            kind: TransactionType::Debit,
+            tag: Tag("ops".into()),
+            date: "2024-03-01".into(),
+        };
+        
+        app.transactions = vec![tx1, tx2, tx3];
+        app.tags = vec![Tag("food".into()), Tag("salary".into()), Tag("ops".into())];
+        
+        // Initially no filter
+        assert_eq!(app.get_filtered_transactions().len(), 3);
+        
+        // Filter by month_year
+        app.filter.active = true;
+        app.filter.month_year = "2024-02".into();
+        let filtered = app.get_filtered_transactions();
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered[0].source, "Food shop");
+        assert_eq!(filtered[1].source, "Salary");
+        
+        // Filter by month_year and tag
+        app.filter.tag_index = Some(0); // "food"
+        let filtered = app.get_filtered_transactions();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].source, "Food shop");
+        
+        // Filter only by tag
+        app.filter.month_year = "".into();
+        let filtered = app.get_filtered_transactions();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].source, "Food shop");
+        
+        // Clear filter
+        app.filter.active = false;
+        assert_eq!(app.get_filtered_transactions().len(), 3);
     }
 }

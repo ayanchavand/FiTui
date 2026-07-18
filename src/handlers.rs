@@ -39,6 +39,7 @@ pub fn handle_key(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
         // 👇 New popup mode
         Mode::Popup => handle_popup(app, key, conn),
         Mode::RecurringManagement => handle_recurring_management(app, key, conn),
+        Mode::Filtering => handle_filter(app, key),
     }
 }
 
@@ -84,13 +85,26 @@ fn handle_popup(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 //
 
 fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
-    let len = app.transactions.len();
+    let len = app.get_filtered_transactions().len();
 
     match key {
         KeyCode::Char('a') => {
             app.form.reset();
             app.editing = None;
             app.mode = Mode::Adding;
+        }
+
+        KeyCode::Char('f') => {
+            app.mode = Mode::Filtering;
+        }
+
+        KeyCode::Char('c') => {
+            if app.filter.active {
+                app.filter.active = false;
+                app.filter.month_year.clear();
+                app.filter.tag_index = None;
+                app.selected = 0;
+            }
         }
 
         KeyCode::Up => {
@@ -241,5 +255,68 @@ fn handle_recurring_management(app: &mut App, key: KeyCode, conn: &Connection) -
         _ => {}
     }
 
+    false
+}
+
+fn handle_filter(app: &mut App, key: KeyCode) -> bool {
+    match key {
+        KeyCode::Esc => {
+            app.mode = Mode::Normal;
+        }
+        KeyCode::Tab => {
+            app.filter.active_field = app.filter.active_field.next();
+        }
+        KeyCode::BackTab => {
+            app.filter.active_field = app.filter.active_field.back();
+        }
+        KeyCode::Right => {
+            if matches!(app.filter.active_field, crate::app::FilterField::Tag) {
+                app.filter.tag_index = match app.filter.tag_index {
+                    None => Some(0),
+                    Some(idx) => {
+                        if idx + 1 < app.tags.len() {
+                            Some(idx + 1)
+                        } else {
+                            None
+                        }
+                    }
+                };
+            }
+        }
+        KeyCode::Left => {
+            if matches!(app.filter.active_field, crate::app::FilterField::Tag) {
+                app.filter.tag_index = match app.filter.tag_index {
+                    None => Some(app.tags.len() - 1),
+                    Some(idx) => {
+                        if idx > 0 {
+                            Some(idx - 1)
+                        } else {
+                            None
+                        }
+                    }
+                };
+            }
+        }
+        KeyCode::Backspace => {
+            if matches!(app.filter.active_field, crate::app::FilterField::MonthYear) {
+                app.filter.month_year.pop();
+            }
+        }
+        KeyCode::Char(c) => {
+            if matches!(app.filter.active_field, crate::app::FilterField::MonthYear) {
+                if c.is_ascii_digit() || c == '-' {
+                    if app.filter.month_year.len() < 7 {
+                        app.filter.month_year.push(c);
+                    }
+                }
+            }
+        }
+        KeyCode::Enter => {
+            app.filter.active = !app.filter.month_year.is_empty() || app.filter.tag_index.is_some();
+            app.selected = 0;
+            app.mode = Mode::Normal;
+        }
+        _ => {}
+    }
     false
 }

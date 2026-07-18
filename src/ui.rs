@@ -23,6 +23,9 @@ use header::draw_header;
 mod modal;
 use modal::draw_popup;
 
+mod filter;
+use filter::draw_filter_popup;
+
 const POPUP_WIDTH_PERCENT: u16 = 60;
 const POPUP_HEIGHT_PERCENT: u16 = 30;
 
@@ -83,10 +86,11 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
         }
 
         Mode::Adding => {
+            let filtered_txs = app.get_filtered_transactions();
             draw_main_view(
                 f,
                 content_area,
-                &app.transactions,
+                &filtered_txs,
                 snapshot.earned,
                 snapshot.spent,
                 snapshot.balance,
@@ -97,10 +101,11 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
         }
 
         Mode::Popup => {
+            let filtered_txs = app.get_filtered_transactions();
             draw_main_view(
                 f,
                 content_area,
-                &app.transactions,
+                &filtered_txs,
                 snapshot.earned,
                 snapshot.spent,
                 snapshot.balance,
@@ -110,15 +115,31 @@ pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
             draw_popup(f, app, &theme);
         }
 
+        Mode::Filtering => {
+            let filtered_txs = app.get_filtered_transactions();
+            draw_main_view(
+                f,
+                content_area,
+                &filtered_txs,
+                snapshot.earned,
+                snapshot.spent,
+                snapshot.balance,
+                app,
+                &theme,
+            );
+            draw_filter_popup(f, app, &theme);
+        }
+
         Mode::RecurringManagement => {
             draw_recurring_management(f, content_area, app, &theme);
         }
 
         _ => {
+            let filtered_txs = app.get_filtered_transactions();
             draw_main_view(
                 f,
                 content_area,
-                &app.transactions,
+                &filtered_txs,
                 snapshot.earned,
                 snapshot.spent,
                 snapshot.balance,
@@ -313,6 +334,21 @@ fn draw_transactions_list(
             .fg(theme.background)
             .add_modifier(Modifier::BOLD);
 
+        let title_text = if app.filter.active {
+            let filter_tag = match app.filter.tag_index {
+                None => "ALL".to_string(),
+                Some(idx) => format!("#{}", app.tags[idx].as_str()),
+            };
+            let filter_date = if app.filter.month_year.is_empty() {
+                "ALL".to_string()
+            } else {
+                app.filter.month_year.clone()
+            };
+            format!(" Transactions [Filter: Date={}, Tag={}] ", filter_date, filter_tag)
+        } else {
+            " Transactions ".to_string()
+        };
+
         let table = Table::new(rows, &[
                 Constraint::Percentage(32), // SOURCE
                 Constraint::Length(1),      // │
@@ -325,7 +361,7 @@ fn draw_transactions_list(
                 Constraint::Percentage(22), // TAG
             ])
             .header(header)
-            .block(theme.block("Transactions"))
+            .block(theme.block(&title_text))
             .column_spacing(0)
             .style(Style::default().bg(theme.background))
             .highlight_style(highlight)
@@ -345,15 +381,26 @@ fn draw_transactions_list(
     let label = |l: &'static str| Span::styled(l, theme.muted_text());
     let sep   = || Span::styled("  ", theme.muted_text());
 
-    let footer = Paragraph::new(Line::from(vec![
+    let mut footer_spans = vec![
         key("↑↓"), label(" Navigate"),  sep(),
         key("Tab"), label("/"), key("←→"), label(" Switch view"), sep(),
         key("a"), label(" Add"),  sep(),
         key("e"), label(" Edit"),  sep(),
         key("d"), label(" Delete"), sep(),
-        key("q"), label(" Quit"),
-    ]))
-    .block(footer_block);
+        key("f"), label(" Filter"), sep(),
+    ];
+    
+    if app.filter.active {
+        footer_spans.push(key("c"));
+        footer_spans.push(label(" Clear"));
+        footer_spans.push(sep());
+    }
+    
+    footer_spans.push(key("q"));
+    footer_spans.push(label(" Quit"));
+
+    let footer = Paragraph::new(Line::from(footer_spans))
+        .block(footer_block);
 
     f.render_widget(footer, layout[1]);
 }
@@ -679,6 +726,12 @@ mod tests {
             currency: "$".into(),
             popup: None,
             theme: Theme::default(),
+            filter: crate::app::TransactionFilter {
+                active: false,
+                month_year: "".into(),
+                tag_index: None,
+                active_field: crate::app::FilterField::MonthYear,
+            },
         };
 
         let tx = Transaction {
@@ -716,6 +769,12 @@ mod tests {
             currency: "$".into(),
             popup: None,
             theme: Theme::default(),
+            filter: crate::app::TransactionFilter {
+                active: false,
+                month_year: "".into(),
+                tag_index: None,
+                active_field: crate::app::FilterField::MonthYear,
+            },
         };
         assert_eq!(app.current_tab(), 0);
         app.mode = Mode::Stats;
