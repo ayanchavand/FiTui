@@ -339,12 +339,13 @@ fn draw_transactions_list(
                 None => "ALL".to_string(),
                 Some(idx) => format!("#{}", app.tags[idx].as_str()),
             };
-            let filter_date = if app.filter.month_year.is_empty() {
-                "ALL".to_string()
-            } else {
-                app.filter.month_year.clone()
+            let range_str = match (app.filter.start_date.is_empty(), app.filter.end_date.is_empty()) {
+                (true, true) => "ALL".to_string(),
+                (false, true) => format!("from {}", app.filter.start_date),
+                (true, false) => format!("to {}", app.filter.end_date),
+                (false, false) => format!("{} to {}", app.filter.start_date, app.filter.end_date),
             };
-            format!(" Transactions [Filter: Date={}, Tag={}] ", filter_date, filter_tag)
+            format!(" Transactions [Filter: Range={}, Tag={}] ", range_str, filter_tag)
         } else {
             " Transactions ".to_string()
         };
@@ -728,9 +729,10 @@ mod tests {
             theme: Theme::default(),
             filter: crate::app::TransactionFilter {
                 active: false,
-                month_year: "".into(),
+                start_date: "".into(),
+                end_date: "".into(),
                 tag_index: None,
-                active_field: crate::app::FilterField::MonthYear,
+                active_field: crate::app::FilterField::StartDate,
             },
         };
 
@@ -771,9 +773,10 @@ mod tests {
             theme: Theme::default(),
             filter: crate::app::TransactionFilter {
                 active: false,
-                month_year: "".into(),
+                start_date: "".into(),
+                end_date: "".into(),
                 tag_index: None,
-                active_field: crate::app::FilterField::MonthYear,
+                active_field: crate::app::FilterField::StartDate,
             },
         };
         assert_eq!(app.current_tab(), 0);

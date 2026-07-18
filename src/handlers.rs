@@ -101,7 +101,8 @@ fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
         KeyCode::Char('c') => {
             if app.filter.active {
                 app.filter.active = false;
-                app.filter.month_year.clear();
+                app.filter.start_date.clear();
+                app.filter.end_date.clear();
                 app.filter.tag_index = None;
                 app.selected = 0;
             }
@@ -298,21 +299,37 @@ fn handle_filter(app: &mut App, key: KeyCode) -> bool {
             }
         }
         KeyCode::Backspace => {
-            if matches!(app.filter.active_field, crate::app::FilterField::MonthYear) {
-                app.filter.month_year.pop();
+            match app.filter.active_field {
+                crate::app::FilterField::StartDate => {
+                    app.filter.start_date.pop();
+                }
+                crate::app::FilterField::EndDate => {
+                    app.filter.end_date.pop();
+                }
+                _ => {}
             }
         }
         KeyCode::Char(c) => {
-            if matches!(app.filter.active_field, crate::app::FilterField::MonthYear) {
-                if c.is_ascii_digit() || c == '-' {
-                    if app.filter.month_year.len() < 7 {
-                        app.filter.month_year.push(c);
+            match app.filter.active_field {
+                crate::app::FilterField::StartDate => {
+                    if c.is_ascii_digit() || c == '-' {
+                        if app.filter.start_date.len() < 10 {
+                            app.filter.start_date.push(c);
+                        }
                     }
                 }
+                crate::app::FilterField::EndDate => {
+                    if c.is_ascii_digit() || c == '-' {
+                        if app.filter.end_date.len() < 10 {
+                            app.filter.end_date.push(c);
+                        }
+                    }
+                }
+                _ => {}
             }
         }
         KeyCode::Enter => {
-            app.filter.active = !app.filter.month_year.is_empty() || app.filter.tag_index.is_some();
+            app.filter.active = !app.filter.start_date.is_empty() || !app.filter.end_date.is_empty() || app.filter.tag_index.is_some();
             app.selected = 0;
             app.mode = Mode::Normal;
         }

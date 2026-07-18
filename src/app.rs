@@ -20,22 +20,25 @@ pub enum Mode {
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum FilterField {
-    MonthYear,
+    StartDate,
+    EndDate,
     Tag,
 }
 
 impl FilterField {
     pub fn next(&self) -> Self {
         match self {
-            Self::MonthYear => Self::Tag,
-            Self::Tag => Self::MonthYear,
+            Self::StartDate => Self::EndDate,
+            Self::EndDate => Self::Tag,
+            Self::Tag => Self::StartDate,
         }
     }
 
     pub fn back(&self) -> Self {
         match self {
-            Self::MonthYear => Self::Tag,
-            Self::Tag => Self::MonthYear,
+            Self::StartDate => Self::Tag,
+            Self::EndDate => Self::StartDate,
+            Self::Tag => Self::EndDate,
         }
     }
 }
@@ -43,7 +46,8 @@ impl FilterField {
 #[derive(Clone, Debug)]
 pub struct TransactionFilter {
     pub active: bool,
-    pub month_year: String,
+    pub start_date: String,
+    pub end_date: String,
     pub tag_index: Option<usize>, // None represents "All"
     pub active_field: FilterField,
 }
@@ -174,9 +178,10 @@ impl App {
             theme,
             filter: TransactionFilter {
                 active: false,
-                month_year: String::new(),
+                start_date: String::new(),
+                end_date: String::new(),
                 tag_index: None,
-                active_field: FilterField::MonthYear,
+                active_field: FilterField::StartDate,
             },
         }
     }
@@ -253,8 +258,13 @@ impl App {
                         return false;
                     }
                 }
-                if !self.filter.month_year.is_empty() {
-                    if !tx.date.starts_with(&self.filter.month_year) {
+                if !self.filter.start_date.is_empty() {
+                    if tx.date < self.filter.start_date {
+                        return false;
+                    }
+                }
+                if !self.filter.end_date.is_empty() {
+                    if tx.date > self.filter.end_date {
                         return false;
                     }
                 }
@@ -437,25 +447,24 @@ mod tests {
         // Initially no filter
         assert_eq!(app.get_filtered_transactions().len(), 3);
         
-        // Filter by month_year
+        // Filter by start_date
         app.filter.active = true;
-        app.filter.month_year = "2024-02".into();
+        app.filter.start_date = "2024-02-11".into();
         let filtered = app.get_filtered_transactions();
         assert_eq!(filtered.len(), 2);
-        assert_eq!(filtered[0].source, "Food shop");
-        assert_eq!(filtered[1].source, "Salary");
+        assert_eq!(filtered[0].source, "Salary");
+        assert_eq!(filtered[1].source, "Hosting");
         
-        // Filter by month_year and tag
+        // Filter by start_date and end_date range
+        app.filter.end_date = "2024-02-28".into();
+        let filtered = app.get_filtered_transactions();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].source, "Salary");
+        
+        // Filter by range and tag
         app.filter.tag_index = Some(0); // "food"
         let filtered = app.get_filtered_transactions();
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].source, "Food shop");
-        
-        // Filter only by tag
-        app.filter.month_year = "".into();
-        let filtered = app.get_filtered_transactions();
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].source, "Food shop");
+        assert_eq!(filtered.len(), 0); // "food" is 2024-02-10, outside range
         
         // Clear filter
         app.filter.active = false;

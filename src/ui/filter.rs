@@ -9,55 +9,97 @@ use crate::{
 };
 
 pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
-    let area = centered_rect(60, 45, f.size());
+    let area = centered_rect(60, 55, f.size());
     let filter = &app.filter;
 
     // Build the popup content
-    let date_active = filter.active_field == FilterField::MonthYear;
+    let start_active = filter.active_field == FilterField::StartDate;
+    let end_active = filter.active_field == FilterField::EndDate;
     let tag_active = filter.active_field == FilterField::Tag;
 
-    // 1. Month/Year Field line
-    let date_display = if filter.month_year.is_empty() && !date_active {
-        "YYYY-MM (e.g. 2024-02)"
+    // 1. Start Date Field line
+    let start_display = if filter.start_date.is_empty() && !start_active {
+        "YYYY-MM-DD (e.g. 2024-01-01)"
     } else {
-        &filter.month_year
+        &filter.start_date
     };
     
-    let date_label_style = if date_active {
+    let start_label_style = if start_active {
         Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
     } else {
         theme.muted_text()
     };
     
-    let date_val_style = if date_active {
+    let start_val_style = if start_active {
         Style::default().fg(theme.foreground).bg(theme.surface).add_modifier(Modifier::BOLD)
-    } else if filter.month_year.is_empty() {
+    } else if filter.start_date.is_empty() {
         Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)
     } else {
         Style::default().fg(theme.foreground)
     };
 
-    let date_indicator = if date_active {
+    let start_indicator = if start_active {
         Span::styled("▶ ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
     } else {
         Span::raw("  ")
     };
 
-    let date_cursor = if date_active {
+    let start_cursor = if start_active {
         Span::styled("│", theme.cursor_style())
     } else {
         Span::raw("")
     };
 
-    let date_line = Line::from(vec![
-        date_indicator,
-        Span::styled("Month/Year", date_label_style),
+    let start_line = Line::from(vec![
+        start_indicator,
+        Span::styled("Start Date", start_label_style),
         Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(date_display, date_val_style),
-        date_cursor,
+        Span::styled(start_display, start_val_style),
+        start_cursor,
     ]);
 
-    // 2. Tag Field line
+    // 2. End Date Field line
+    let end_display = if filter.end_date.is_empty() && !end_active {
+        "YYYY-MM-DD (e.g. 2024-01-31)"
+    } else {
+        &filter.end_date
+    };
+    
+    let end_label_style = if end_active {
+        Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+    } else {
+        theme.muted_text()
+    };
+    
+    let end_val_style = if end_active {
+        Style::default().fg(theme.foreground).bg(theme.surface).add_modifier(Modifier::BOLD)
+    } else if filter.end_date.is_empty() {
+        Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)
+    } else {
+        Style::default().fg(theme.foreground)
+    };
+
+    let end_indicator = if end_active {
+        Span::styled("▶ ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
+    } else {
+        Span::raw("  ")
+    };
+
+    let end_cursor = if end_active {
+        Span::styled("│", theme.cursor_style())
+    } else {
+        Span::raw("")
+    };
+
+    let end_line = Line::from(vec![
+        end_indicator,
+        Span::styled("End Date  ", end_label_style),
+        Span::styled(" │ ", Style::default().fg(theme.subtle)),
+        Span::styled(end_display, end_val_style),
+        end_cursor,
+    ]);
+
+    // 3. Tag Field line
     let tag_display = match filter.tag_index {
         None => "ALL".to_string(),
         Some(idx) => format!("#{}", app.tags[idx].as_str()),
@@ -103,7 +145,9 @@ pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
         Line::styled(" Filter Transactions", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
         Line::styled(" ───────────────────", Style::default().fg(theme.subtle)),
         Line::raw(""),
-        date_line,
+        start_line,
+        Line::raw(""),
+        end_line,
         Line::raw(""),
         tag_line,
         Line::raw(""),
