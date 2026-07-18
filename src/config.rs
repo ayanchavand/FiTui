@@ -88,5 +88,18 @@ pub fn load_config() -> Config {
     }
 
     let text = fs::read_to_string(&path).expect("Failed to read config.yaml");
-    serde_yaml::from_str(&text).expect("Invalid YAML format")
+    let mut config: Config = serde_yaml::from_str(&text).expect("Invalid YAML format");
+
+    // Auto-migrate older configs that don't have theme options visible
+    if !text.contains("theme:") {
+        let default = Config::default();
+        config.theme = default.theme;
+        config.custom_themes = default.custom_themes;
+
+        let yaml =
+            serde_yaml::to_string(&config).expect("Failed to serialize migrated config");
+        let _ = fs::write(&path, yaml); // Ignore write error on read-only environments
+    }
+
+    config
 }
