@@ -113,9 +113,7 @@ impl App {
         let recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
         let theme_name = &config.theme;
-        let theme = if let Some(preconfigured) = Theme::get_preconfigured(theme_name) {
-            preconfigured
-        } else if let Some(custom_config) = config.custom_themes.get(theme_name) {
+        let theme = if let Some(custom_config) = config.custom_themes.get(theme_name) {
             match Theme::from_config(custom_config) {
                 Ok(t) => t,
                 Err(err) => {
@@ -123,6 +121,8 @@ impl App {
                     Theme::default()
                 }
             }
+        } else if let Some(preconfigured) = Theme::get_preconfigured(theme_name) {
+            preconfigured
         } else {
             eprintln!("Theme '{}' not found. Falling back to default.", theme_name);
             Theme::default()

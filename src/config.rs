@@ -27,20 +27,52 @@ fn default_theme_name() -> String {
 impl Default for Config {
     fn default() -> Self {
         let mut custom_themes = HashMap::new();
-        // Add a sample custom theme so users see how it's formatted
+        
         custom_themes.insert(
-            "sunset".to_string(),
+            "dracula".to_string(),
             ThemeConfig {
-                accent: "#ffb86c".to_string(),      // orange
-                accent_soft: "#ff79c6".to_string(), // pink
+                accent: "#bd93f9".to_string(),      // purple
+                accent_soft: "#6272a4".to_string(), // comment/gray-blue
                 credit: "#50fa7b".to_string(),      // green
                 debit: "#ff5555".to_string(),       // red
-                muted: "#6272a4".to_string(),       // gray
-                subtle: "#44475a".to_string(),      // dark gray
-                background: "#21222c".to_string(),  // dark purple bg
-                surface: "#282a36".to_string(),     // purple surface
-                row_alt: "#242530".to_string(),     // row alt
-                foreground: "#f8f8f2".to_string(),  // white/cream
+                muted: "#6272a4".to_string(),       // comment
+                subtle: "#44475a".to_string(),      // selection/darker gray
+                background: "#282a36".to_string(),  // bg
+                surface: "#343746".to_string(),     // current line/surface
+                row_alt: "#2d2f3b".to_string(),     // midpoint
+                foreground: "#f8f8f2".to_string(),  // fg
+            },
+        );
+
+        custom_themes.insert(
+            "nord".to_string(),
+            ThemeConfig {
+                accent: "#88c0d0".to_string(),      // frost blue
+                accent_soft: "#81a1c1".to_string(), // medium frost blue
+                credit: "#a3be8c".to_string(),      // green
+                debit: "#bf616a".to_string(),       // red
+                muted: "#4c566a".to_string(),       // polar night (nord3)
+                subtle: "#3b4252".to_string(),      // polar night (nord1)
+                background: "#2e3440".to_string(),  // polar night (nord0)
+                surface: "#434c5e".to_string(),     // polar night (nord2)
+                row_alt: "#353c4a".to_string(),     // midpoint
+                foreground: "#d8dee9".to_string(),  // snow storm (nord4)
+            },
+        );
+
+        custom_themes.insert(
+            "gruvbox".to_string(),
+            ThemeConfig {
+                accent: "#fabd2f".to_string(),      // yellow
+                accent_soft: "#d79921".to_string(), // darker yellow
+                credit: "#b8bb26".to_string(),      // green
+                debit: "#fb4934".to_string(),       // red
+                muted: "#928374".to_string(),       // gray
+                subtle: "#504945".to_string(),      // dark gray
+                background: "#282828".to_string(),  // bg0
+                surface: "#3c3836".to_string(),     // bg1
+                row_alt: "#32302f".to_string(),     // midpoint
+                foreground: "#ebdbb2".to_string(),  // fg0
             },
         );
 
