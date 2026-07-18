@@ -1,8 +1,10 @@
 # FiTui
-
 [![Built With Ratatui](https://ratatui.rs/built-with-ratatui/badge.svg)](https://ratatui.rs/)
-![Crates.io Version](https://img.shields.io/crates/v/FiTui?style=for-the-badge)
-![Crates.io Downloads (latest version)](https://img.shields.io/crates/dv/fitui?style=flat-square)
+
+![GitHub Release](https://img.shields.io/github/v/release/ayanchavand/fitui?style=for-the-badge)
+![Crates.io Version](https://img.shields.io/crates/v/fitui?style=for-the-badge)
+![Recent Downloads](https://img.shields.io/crates/dr/fitui?style=for-the-badge)
+![Last Commit](https://img.shields.io/github/last-commit/ayanchavand/fitui?style=for-the-badge)
 
 A lightweight terminal-based personal finance tracker. Record transactions, track spending, and view financial insights from your terminal.
 
