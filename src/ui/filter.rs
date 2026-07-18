@@ -18,12 +18,6 @@ pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
     let tag_active = filter.active_field == FilterField::Tag;
 
     // 1. Start Date Field line
-    let start_display = if filter.start_date.is_empty() && !start_active {
-        "YYYY-MM-DD (e.g. 2024-01-01)"
-    } else {
-        &filter.start_date
-    };
-    
     let start_label_style = if start_active {
         Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
     } else {
@@ -32,8 +26,6 @@ pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
     
     let start_val_style = if start_active {
         Style::default().fg(theme.foreground).bg(theme.surface).add_modifier(Modifier::BOLD)
-    } else if filter.start_date.is_empty() {
-        Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)
     } else {
         Style::default().fg(theme.foreground)
     };
@@ -44,27 +36,33 @@ pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
         Span::raw("  ")
     };
 
-    let start_cursor = if start_active {
-        Span::styled("│", theme.cursor_style())
+    let mut start_value_spans = Vec::new();
+    if filter.start_date.is_empty() && !start_active {
+        start_value_spans.push(Span::styled("YYYY-MM-DD (Start Date)", Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)));
     } else {
-        Span::raw("")
-    };
+        start_value_spans.push(Span::styled(filter.start_date.clone(), start_val_style));
+        if start_active {
+            start_value_spans.push(Span::styled("│", theme.cursor_style()));
+        }
+        if filter.start_date.len() < 10 {
+            let mask = "YYYY-MM-DD";
+            let remaining = &mask[filter.start_date.len()..];
+            start_value_spans.push(Span::styled(remaining.to_string(), Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)));
+        }
+    }
 
-    let start_line = Line::from(vec![
-        start_indicator,
-        Span::styled("Start Date", start_label_style),
-        Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(start_display, start_val_style),
-        start_cursor,
-    ]);
+    let start_line_spans = {
+        let mut spans = vec![
+            start_indicator,
+            Span::styled("Start Date", start_label_style),
+            Span::styled(" │ ", Style::default().fg(theme.subtle)),
+        ];
+        spans.extend(start_value_spans);
+        spans
+    };
+    let start_line = Line::from(start_line_spans);
 
     // 2. End Date Field line
-    let end_display = if filter.end_date.is_empty() && !end_active {
-        "YYYY-MM-DD (e.g. 2024-01-31)"
-    } else {
-        &filter.end_date
-    };
-    
     let end_label_style = if end_active {
         Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
     } else {
@@ -73,8 +71,6 @@ pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
     
     let end_val_style = if end_active {
         Style::default().fg(theme.foreground).bg(theme.surface).add_modifier(Modifier::BOLD)
-    } else if filter.end_date.is_empty() {
-        Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)
     } else {
         Style::default().fg(theme.foreground)
     };
@@ -85,19 +81,31 @@ pub fn draw_filter_popup(f: &mut Frame, app: &App, theme: &Theme) {
         Span::raw("  ")
     };
 
-    let end_cursor = if end_active {
-        Span::styled("│", theme.cursor_style())
+    let mut end_value_spans = Vec::new();
+    if filter.end_date.is_empty() && !end_active {
+        end_value_spans.push(Span::styled("YYYY-MM-DD (End Date)", Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)));
     } else {
-        Span::raw("")
-    };
+        end_value_spans.push(Span::styled(filter.end_date.clone(), end_val_style));
+        if end_active {
+            end_value_spans.push(Span::styled("│", theme.cursor_style()));
+        }
+        if filter.end_date.len() < 10 {
+            let mask = "YYYY-MM-DD";
+            let remaining = &mask[filter.end_date.len()..];
+            end_value_spans.push(Span::styled(remaining.to_string(), Style::default().fg(theme.subtle).add_modifier(Modifier::ITALIC)));
+        }
+    }
 
-    let end_line = Line::from(vec![
-        end_indicator,
-        Span::styled("End Date  ", end_label_style),
-        Span::styled(" │ ", Style::default().fg(theme.subtle)),
-        Span::styled(end_display, end_val_style),
-        end_cursor,
-    ]);
+    let end_line_spans = {
+        let mut spans = vec![
+            end_indicator,
+            Span::styled("End Date  ", end_label_style),
+            Span::styled(" │ ", Style::default().fg(theme.subtle)),
+        ];
+        spans.extend(end_value_spans);
+        spans
+    };
+    let end_line = Line::from(end_line_spans);
 
     // 3. Tag Field line
     let tag_display = match filter.tag_index {

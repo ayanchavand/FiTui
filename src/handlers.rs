@@ -301,10 +301,18 @@ fn handle_filter(app: &mut App, key: KeyCode) -> bool {
         KeyCode::Backspace => {
             match app.filter.active_field {
                 crate::app::FilterField::StartDate => {
-                    app.filter.start_date.pop();
+                    let s = &mut app.filter.start_date;
+                    if s.ends_with('-') {
+                        s.pop();
+                    }
+                    s.pop();
                 }
                 crate::app::FilterField::EndDate => {
-                    app.filter.end_date.pop();
+                    let s = &mut app.filter.end_date;
+                    if s.ends_with('-') {
+                        s.pop();
+                    }
+                    s.pop();
                 }
                 _ => {}
             }
@@ -312,16 +320,38 @@ fn handle_filter(app: &mut App, key: KeyCode) -> bool {
         KeyCode::Char(c) => {
             match app.filter.active_field {
                 crate::app::FilterField::StartDate => {
-                    if c.is_ascii_digit() || c == '-' {
-                        if app.filter.start_date.len() < 10 {
-                            app.filter.start_date.push(c);
+                    if c.is_ascii_digit() {
+                        let s = &mut app.filter.start_date;
+                        if s.len() < 10 {
+                            s.push(c);
+                            let len = s.len();
+                            if len == 4 || len == 7 {
+                                s.push('-');
+                            }
+                        }
+                    } else if c == '-' {
+                        let s = &mut app.filter.start_date;
+                        let len = s.len();
+                        if (len == 4 || len == 7) && len < 10 {
+                            s.push(c);
                         }
                     }
                 }
                 crate::app::FilterField::EndDate => {
-                    if c.is_ascii_digit() || c == '-' {
-                        if app.filter.end_date.len() < 10 {
-                            app.filter.end_date.push(c);
+                    if c.is_ascii_digit() {
+                        let s = &mut app.filter.end_date;
+                        if s.len() < 10 {
+                            s.push(c);
+                            let len = s.len();
+                            if len == 4 || len == 7 {
+                                s.push('-');
+                            }
+                        }
+                    } else if c == '-' {
+                        let s = &mut app.filter.end_date;
+                        let len = s.len();
+                        if (len == 4 || len == 7) && len < 10 {
+                            s.push(c);
                         }
                     }
                 }
