@@ -5,6 +5,7 @@ use crate::{
     db,
     form::TransactionForm,
     models::{RecurringEntry, Tag, Transaction},
+    theme::Theme,
 };
 
 #[derive(PartialEq)]
@@ -46,6 +47,7 @@ pub struct App {
     pub selected_recurring: usize,
     pub currency: String,
     pub popup: Option<PopupKind>,
+    pub theme: Theme,
 }
 
 // helpers for tab management; the UI shows three tabs and the
@@ -110,6 +112,22 @@ impl App {
         let transactions = db::get_transactions(conn).unwrap_or_default();
         let recurring_entries = db::get_recurring_entries(conn).unwrap_or_default();
 
+        let theme_name = &config.theme;
+        let theme = if let Some(preconfigured) = Theme::get_preconfigured(theme_name) {
+            preconfigured
+        } else if let Some(custom_config) = config.custom_themes.get(theme_name) {
+            match Theme::from_config(custom_config) {
+                Ok(t) => t,
+                Err(err) => {
+                    eprintln!("Error parsing custom theme '{}': {}. Falling back to default.", theme_name, err);
+                    Theme::default()
+                }
+            }
+        } else {
+            eprintln!("Theme '{}' not found. Falling back to default.", theme_name);
+            Theme::default()
+        };
+
         Self {
             mode: Mode::Normal,
             form: TransactionForm::new(),
@@ -121,6 +139,7 @@ impl App {
             selected_recurring: 0,
             currency: config.currency,
             popup: None,
+            theme,
         }
     }
 

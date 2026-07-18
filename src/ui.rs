@@ -64,7 +64,7 @@ fn draw_tabs(f: &mut Frame, area: Rect, app: &App, theme: &Theme) {
 }
 
 pub fn draw_ui(f: &mut Frame, app: &App, snapshot: &StatsSnapshot) {
-    let theme = Theme::default();
+    let theme = app.theme;
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -677,6 +677,7 @@ mod tests {
             selected_recurring: 0,
             currency: "$".into(),
             popup: None,
+            theme: Theme::default(),
         };
 
         let tx = Transaction {
@@ -713,6 +714,7 @@ mod tests {
             selected_recurring: 0,
             currency: "$".into(),
             popup: None,
+            theme: Theme::default(),
         };
         assert_eq!(app.current_tab(), 0);
         app.mode = Mode::Stats;

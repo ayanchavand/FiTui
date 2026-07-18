@@ -2,19 +2,48 @@ use serde::{Deserialize, Serialize};
 use directories::ProjectDirs;
 use std::{fs, path::PathBuf};
 
-#[derive(Debug, Deserialize, Serialize)]
+use crate::theme::ThemeConfig;
+use std::collections::HashMap;
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     pub tags: Vec<String>,
     #[serde(default = "default_currency")]
     pub currency: String,
+    #[serde(default = "default_theme_name")]
+    pub theme: String,
+    #[serde(default)]
+    pub custom_themes: HashMap<String, ThemeConfig>,
 }
 
 fn default_currency() -> String {
     "$".to_string()
 }
 
+fn default_theme_name() -> String {
+    "default".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
+        let mut custom_themes = HashMap::new();
+        // Add a sample custom theme so users see how it's formatted
+        custom_themes.insert(
+            "sunset".to_string(),
+            ThemeConfig {
+                accent: "#ffb86c".to_string(),      // orange
+                accent_soft: "#ff79c6".to_string(), // pink
+                credit: "#50fa7b".to_string(),      // green
+                debit: "#ff5555".to_string(),       // red
+                muted: "#6272a4".to_string(),       // gray
+                subtle: "#44475a".to_string(),      // dark gray
+                background: "#21222c".to_string(),  // dark purple bg
+                surface: "#282a36".to_string(),     // purple surface
+                row_alt: "#242530".to_string(),     // row alt
+                foreground: "#f8f8f2".to_string(),  // white/cream
+            },
+        );
+
         Self {
             tags: vec![
                 "food".into(),
@@ -25,6 +54,8 @@ impl Default for Config {
                 "other".into(),
             ],
             currency: default_currency(),
+            theme: default_theme_name(),
+            custom_themes,
         }
     }
 }
