@@ -6,7 +6,7 @@
 
 A lightweight terminal-based personal finance tracker. Record transactions, track spending, and view financial insights from your terminal.
 
-**Version:** 0.3.0
+**Version:** 1.0.1
 
 ---
 
@@ -163,6 +163,25 @@ Feature request or bug? [Open an issue](https://github.com/ayanchavand/fitui/iss
 ---
 
 ## Changelog
+
+### [1.0.1] - 2026-07-18
+
+**Added**
+- Centered interactive Filter modal popup (`f` key to open, `c` key to clear).
+- Date range filtering (Start Date and End Date).
+- Real-time date input auto-formatting with auto-hyphenation.
+- Visual dynamic placeholder date mask (`YYYY-MM-DD`) matching cursor position.
+- Interactive Tag selection cycling (with `Left`/`Right` arrow keys).
+- Custom YAML theme definitions and presets (Nord, Dracula, Gruvbox).
+- Startup config auto-migration mapping newer theme attributes.
+- `BackTab` backwards focus cycling in transaction entry form.
+- Random transaction generator utility script for dev environments.
+
+**Changed**
+- Bounded transaction display rendering and scrolling navigation limits to last 15 items.
+
+**Fixed**
+- Refreshed clamp checks to prevent out-of-bounds scrolling in normal list selection.
 
 ### [0.3.0] - 2026-02-27
 

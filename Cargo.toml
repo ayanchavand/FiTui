@@ -1,6 +1,6 @@
 [package]
 name = "FiTui"
-version = "0.3.0"
+version = "1.0.1"
 edition = "2024"
 description = "Terminal-based personal expense tracker"
 license = "MIT"

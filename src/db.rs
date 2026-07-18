@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use rusqlite::{Connection, Result};
 use std::collections::HashMap;
 use std::fs;

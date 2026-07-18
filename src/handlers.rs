@@ -84,7 +84,7 @@ fn handle_popup(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
 // ---------------- NORMAL MODE ----------------
 //
 
-fn handle_normal(app: &mut App, key: KeyCode, conn: &Connection) -> bool {
+fn handle_normal(app: &mut App, key: KeyCode, _conn: &Connection) -> bool {
     let len = app.get_filtered_transactions().len();
 
     match key {
